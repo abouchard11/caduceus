@@ -97,3 +97,54 @@ def test_all_seats_patch_cleanly_from_a_shared_clone():
         text = cfg.read_text()
         assert "fallback_providers: []" in text, f"{name} still has a live fallback"
         assert "opus" not in text.lower(), f"{name} still references opus"
+
+
+# ---------------------------------------------------------------- guard hook
+# 2026-08-19 incident #2: install_guard_hook() unconditionally targeted root
+# config.yaml (the operator's own daily-driver Hermes profile) alongside the
+# seat profiles. The operator drives unguarded; only seats get the hook. The
+# root hook was pulled by hand mid-session - the next `cad init --guard-write`
+# must not silently reintroduce it.
+
+def test_guard_hook_never_touches_root_config():
+    from caduceus import config
+
+    root_cfg = config.hermes_home() / "config.yaml"
+    root_cfg.write_text("model:\n  default: claude-opus-4.6\n")
+
+    log = []
+    seatsetup.install_guard_hook(log, write=True, profiles=["forge", "finisher"])
+
+    text = root_cfg.read_text()
+    assert "cad guard hook" not in text
+    assert "hooks:" not in text
+    assert text == "model:\n  default: claude-opus-4.6\n"
+
+
+def test_guard_hook_writes_only_to_named_seat_profiles():
+    seat = SEATS["forge"]
+    cfg = _cfg_path(seat)
+    cfg.write_text("model:\n  default: qwen3.7-plus\n")
+
+    log = []
+    seatsetup.install_guard_hook(log, write=True, profiles=["forge"])
+
+    text = cfg.read_text()
+    assert "cad guard hook" in text
+    assert any("forge" in line and "config.yaml" in line for line in log)
+    assert not any("hermes_home" in line.lower() and "profiles" not in line
+                   for line in log)
+
+
+def test_guard_hook_write_with_no_profiles_touches_nothing():
+    """write=True but no profiles given (e.g. `cad init` with zero seats
+    provisioned this run) must be a no-op, never fall back to root."""
+    from caduceus import config
+
+    root_cfg = config.hermes_home() / "config.yaml"
+    root_cfg.write_text("model:\n  default: claude-opus-4.6\n")
+
+    log = []
+    seatsetup.install_guard_hook(log, write=True, profiles=None)
+
+    assert root_cfg.read_text() == "model:\n  default: claude-opus-4.6\n"

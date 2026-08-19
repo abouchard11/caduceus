@@ -239,11 +239,15 @@ def install_skill(seat_names: List[str], log: List[str]) -> None:
 
 def install_guard_hook(log: List[str], write: bool = False,
                        profiles: Optional[List[str]] = None) -> str:
+    # Seat profiles only - never the operator's own root config.yaml. Alex
+    # drives unguarded; agents don't. (2026-08-19 incident: this used to
+    # prepend hermes_home()/config.yaml unconditionally, so `cad init
+    # --guard-write` silently hooked the operator's daily-driver profile
+    # alongside the seats. The root hook was pulled by hand mid-session;
+    # it must not come back on the next re-run.)
     guard_cmd = f"{shutil.which('cad') or 'cad'} guard hook"
     snippet = hooks_block(guard_cmd)
-    targets = [config.hermes_home() / "config.yaml"]
-    for name in (profiles or []):
-        targets.append(profile_dir(name) / "config.yaml")
+    targets = [profile_dir(name) / "config.yaml" for name in (profiles or [])]
     if not write:
         log.append("[i] guard hook NOT written (pass --write). Add to config.yaml:")
         log.append(snippet)
