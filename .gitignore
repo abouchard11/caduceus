@@ -1,0 +1,20 @@
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# generated
+outputs/*.html
+
+# never commit secrets (runtime state lives in ~/.caduceus, not here — belt and suspenders)
+*.env
+.env*
+telegram.json
+*token*
+*.bak.*
+
+# os
+.DS_Store
