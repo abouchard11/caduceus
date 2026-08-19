@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.3.2 — 2026-08-19
+Codifies the third 2026-08-19 incident, which until now lived only as a hand
+edit in `~/.hermes/profiles/sparring/config.yaml`: deleting that profile and
+re-running `cad init` would have restored the 404.
+- SPARRING (`nousresearch/hermes-4-405b`) has NO tool-capable endpoint on
+  OpenRouter, and Hermes attaches tool definitions to every request from three
+  independent sources: platform toolsets, the tool_search index, and each
+  enabled MCP server. All three must be off — each 404 only names the source
+  still standing, so fixing one at a time reads like the fix failed.
+- New `Seat.tools_capable` flag (+ `config.TOOLS_INCAPABLE_MODELS` /
+  `model_tools_capable()`); `patch_profile_config()` now writes
+  `agent.disabled_toolsets`, `tools.tool_search.enabled: "off"` and
+  `enabled: false` on every inherited MCP server for tools-incapable seats,
+  idempotently. Tools-capable seats are left exactly as found — the lockdown is
+  never applied in reverse, so an operator's own toolset choices survive.
+- `models.effective_seat()` recomputes `tools_capable` from the model, so
+  `cad models set sparring <tool-capable-model>` lifts the lockdown instead of
+  leaving the seat stripped with no way back but hand-editing the profile.
+- The top-level-block editor could not do this without destroying sibling keys
+  (`agent.max_turns`, an MCP server's `command`/`args`), so seatsetup gained
+  nested line-based editors: `set_child_block`, `set_scalar_in_child`,
+  `child_keys`, `list_items`. Still stdlib-only, still comment-preserving.
+- The disabled-toolset list is the known CLI set unioned with whatever
+  `platform_toolsets.cli` the profile itself declares: Hermes ships new
+  toolsets over time and one missed toolset brings the 404 straight back.
+- 9 new tests (71 total), including a no-op pin against the exact hand-fixed
+  profile shape. Verified live A/B on a throwaway cloned profile: HTTP 404
+  before the patch, a real answer after it, `[=] already correct` on re-run,
+  and byte-identical output against the real sparring config.
+
 ## 0.3.1 — 2026-08-19
 Post-mortem of run 20260819-084035-cd968b (first live council): two seats
 returned a raw OpenRouter HTTP 402 as prose and it became the memo's lead

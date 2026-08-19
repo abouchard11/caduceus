@@ -72,6 +72,25 @@ class Seat:
     temperature_hint: str     # encoded in SOUL, hermes doesn't take temp per call
     port: int                 # api_server port when gateways are enabled
     domains: List[str] = field(default_factory=list)  # believability prior domains
+    tools_capable: bool = True  # False -> profile must ship with tools stripped
+
+
+# Models with NO tool-capable endpoint on their provider. Hermes attaches tool
+# definitions to every request, so a seat cast on one of these 404s on every
+# call ("No endpoints found that support tool use") until its profile ships
+# with every toolset, tool_search, and every MCP server switched off.
+# Verified live on OpenRouter 2026-08-19: neither 405B Hermes model has a
+# single endpoint accepting the `tools` parameter - downgrading does not help.
+TOOLS_INCAPABLE_MODELS = frozenset({
+    "nousresearch/hermes-4-405b",
+    "nousresearch/hermes-3-405b",
+})
+
+
+def model_tools_capable(model_id: str) -> bool:
+    """Can this model take tool definitions? Model-level truth, used to keep
+    Seat.tools_capable honest across recasts (`cad models set`)."""
+    return model_id not in TOOLS_INCAPABLE_MODELS
 
 
 # Model casting rationale (verified live on OpenRouter 2026-08-19):
@@ -116,6 +135,10 @@ SEATS: Dict[str, Seat] = {
         model="nousresearch/hermes-4-405b", provider="openrouter", family="nous",
         temperature_hint="hot", port=8654,
         domains=["strategy", "product", "naming", "growth"],
+        # No OpenRouter endpoint for this model accepts `tools` (2026-08-19):
+        # its profile is provisioned with every toolset stripped. Reasoning
+        # seat only - it argues, it does not touch the filesystem.
+        tools_capable=False,
     ),
     "envoy": Seat(
         name="envoy", display="ENVOY",
