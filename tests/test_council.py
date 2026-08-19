@@ -3,9 +3,22 @@ from pathlib import Path
 
 from caduceus import config
 from caduceus.config import SEATS
-from caduceus.council import Council, extract_json, jaccard, pair_agrees, parse_draft
+from caduceus.council import (Council, extract_json, jaccard,
+                               looks_like_provider_error, pair_agrees,
+                               parse_draft)
 from caduceus.hermes import MockTransport, SeatReply
 from caduceus.ledger import Ledger
+
+# Verbatim (truncated) shape of the 2026-08-19 incident: Hermes caught a
+# fallback failure internally and printed it as assistant text, exit 0.
+OPUS_402_TEXT = (
+    "Billing or credits exhausted: HTTP 402: This request requires more "
+    "credits, or fewer max_tokens. You requested up to 128000 tokens, but "
+    "can only afford 84559. To increase, visit "
+    "https://openrouter.ai/settings/credits and add more credits\n\n"
+    "OpenRouter reported that billing, credits, or account entitlement is "
+    "exhausted for anthropic/claude-opus-4.6."
+)
 
 
 def D(position, rec, conf=0.8, **kw):
@@ -133,6 +146,50 @@ def test_believability_weights_rank_winner():
     res = c.run("review the release plan", seats, domain="review")
     # finisher's track record should beat sparring's confidence theater
     assert res.ranked[0][0] == "finisher"
+
+
+def test_looks_like_provider_error_detects_billing_text():
+    assert looks_like_provider_error(OPUS_402_TEXT)
+    assert not looks_like_provider_error("Ship it, coverage is solid and the risk is low.")
+    assert not looks_like_provider_error("")
+
+
+def test_parse_draft_rejects_provider_error_as_position():
+    r = SeatReply("forge", OPUS_402_TEXT, True, "mock")
+    d = parse_draft(r, 1)
+    assert d.parse_ok is False
+    assert d.position == ""            # must NOT be rescued into position
+    assert "402" in d.error
+
+
+def test_billing_error_cannot_win_or_lead_the_council():
+    """2026-08-19 incident, reproduced and pinned: two seats hit a shared
+    fallback's HTTP 402 and returned raw billing prose (exit 0, no JSON).
+    On a fresh ledger every seat ties at the same 0.5 prior, so before this
+    fix the error text became the memo's lead recommendation. It must never
+    outrank a seat that actually answered."""
+    script = {
+        # forge and sparring: raw prose, exit 0, no JSON - as actually observed
+        "forge": [OPUS_402_TEXT],
+        "sparring": [OPUS_402_TEXT],
+        # finisher and recon answered for real and go through cross-exam too
+        "finisher": [D("Park it - no evidence was reachable this round",
+                       "park pending real repo access", 0.4),
+                     D("Park it - no evidence was reachable this round",
+                       "park pending real repo access", 0.4)],
+        "recon": [D("Agree with finisher, nothing was retrievable",
+                    "park pending real repo access", 0.4),
+                  D("Agree with finisher, nothing was retrievable",
+                    "park pending real repo access", 0.4)],
+    }
+    mock = MockTransport(script)
+    c = Council(ledger=Ledger(), transport="mock", mock=mock)
+    seats = [SEATS[n] for n in config.FULL_COUNCIL]
+    res = c.run("PassingWeather: cut, ship, or park?", seats, quick=False)
+    assert res.winner is not None
+    assert res.winner.seat in ("finisher", "recon")
+    assert "402" not in (res.winner.position + res.winner.recommendation)
+    assert any("sparring" in e for e in res.errors)
 
 
 def test_agreement_math():

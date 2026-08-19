@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.3.1 — 2026-08-19
+Post-mortem of run 20260819-084035-cd968b (first live council): two seats
+returned a raw OpenRouter HTTP 402 as prose and it became the memo's lead
+recommendation. Three defects, all fixed:
+- `hermes profile create --clone` copies the root profile's
+  `fallback_providers` (a shared anthropic/claude-opus-4.6) into every seat:
+  silent same-model failover that breaks family heterogeneity and, once the
+  account has credits, silently bills at Opus prices. `cad init` now
+  neutralizes it (`fallback_providers: []`) — seats fail loud, never reroute.
+- The seat config patcher dropped the root's `max_tokens` cap while swapping
+  the model block, so fallback calls reserved Hermes' 128k default.
+  `model_block()` now always writes `max_tokens: 8192`.
+- Council synthesis rescued unparseable text as a position, letting provider
+  error prose outrank real drafts on a fresh ledger (all seats tied at the
+  0.5 prior). Added a provider-error filter: 402/429/quota/billing text is
+  recorded as a seat error, excluded from weighting, lead, and dissent.
+- New: tests/test_seatsetup.py (provisioning had zero coverage — how all of
+  this shipped) + incident-pinning tests in test_council.py. 56 tests.
+Operational note: FINISHER's Minority Report correctly flagged the garbage
+drafts in the live run. The dissent channel worked before the fix existed.
+
 ## 0.3.0 — 2026-08-19
 - Telegram council bridge: `cad telegram runbook|init|test`, `--live` broadcasts
   on councils and plans. Verified against Bot API 10.0 (May 2026) bot-to-bot

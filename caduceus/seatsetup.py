@@ -80,7 +80,22 @@ def model_block(seat: Seat) -> str:
         "model:\n"
         f"  default: {seat.model}\n"
         f"  provider: {seat.provider}\n"
+        "  max_tokens: 8192\n"
     )
+
+
+def fallback_block() -> str:
+    # `hermes profile create --clone` copies the root profile's
+    # fallback_providers block verbatim into every new seat. Left alone this
+    # is a double hazard: (1) every seat silently reroutes to the SAME
+    # fallback model on any primary hiccup, which - if it ever succeeds -
+    # collapses the model-family heterogeneity Decision #4 requires without
+    # anyone noticing; (2) that fallback target may be uncapped and far more
+    # expensive than the seat's real casting (2026-08-19: a shared
+    # anthropic/claude-opus-4.6 fallback 402'd requesting 128k tokens and its
+    # raw billing error nearly became a council's headline recommendation).
+    # Council seats must fail loud and attributably, not reroute in secret.
+    return "fallback_providers: []\n"
 
 
 def api_server_block(seat: Seat, key: str) -> str:
@@ -168,7 +183,7 @@ def patch_profile_config(seat: Seat, api_key: str, log: List[str],
     cfg = profile_dir(seat.name) / "config.yaml"
     if not cfg.exists():
         # minimal standalone config
-        body = model_block(seat)
+        body = model_block(seat) + "\n" + fallback_block()
         if enable_api:
             body += "\n" + api_server_block(seat, api_key)
         cfg.parent.mkdir(parents=True, exist_ok=True)
@@ -177,6 +192,7 @@ def patch_profile_config(seat: Seat, api_key: str, log: List[str],
         return
     text = cfg.read_text()
     new_text = replace_top_block(text, "model", model_block(seat))
+    new_text = replace_top_block(new_text, "fallback_providers", fallback_block())
     if enable_api and not has_top_block(new_text, "platforms"):
         new_text += "\n" + api_server_block(seat, api_key)
     if new_text != text:
