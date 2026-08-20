@@ -74,11 +74,16 @@ def effective_seat(name: str) -> Seat:
     ov = load_casting().get(name)
     if not ov:
         return seat
+    model = ov.get("model", seat.model)
     return dataclasses.replace(
         seat,
-        model=ov.get("model", seat.model),
+        model=model,
         provider=ov.get("provider", seat.provider),
-        family=ov.get("family", family_of(ov.get("model", seat.model))),
+        family=ov.get("family", family_of(model)),
+        # recompute from the model, never inherit: a recast off (or onto) a
+        # tools-incapable model must move the lockdown with it, or the seat
+        # stays stripped forever with no way back but hand-editing the profile
+        tools_capable=config.model_tools_capable(model),
     )
 
 

@@ -1,0 +1,58 @@
+HANDOFF — Caduceus state as of 2026-08-19 (evening)
+Read this first. It is the single source of truth for where things stand. Updated by the Claude Code session that closed out the v0.3.1 handoff tasks (guard-hook fix + first clean council run).
+
+What this project is
+Caduceus: a five-seat AI decision council that runs on top of Hermes Agent. Alex is the Shaper (PrinciplesYou); the seats compensate his measured gaps. Seats deliberate independently, cross-examine anonymized drafts, and a believability-weighted synthesis picks a lead — no voting, dissent preserved as a Minority Report. `docs/DECISIONS.md` and `AGENTS.md` are load-bearing; read them before changing anything.
+
+* Repo: github.com/abouchard11/caduceus (private) · local: ~/projects/caduceus
+* Engine: stdlib-only Python. CLI = `cad` (installed editable via pip).
+* Seats: forge (qwen3.7-plus/alibaba-coding-plan), finisher (claude-sonnet-5), recon (deepseek-v4-pro), sparring (hermes-4-405b), envoy (qwen3.7-flash). All OpenRouter except forge. Key lives in ~/.hermes/.env (OPENROUTER_API_KEY).
+
+What happened today (both waves)
+
+Morning (Cowork session, v0.3.1 / commit 8c05c38): first live council 402'd because `hermes profile create --clone` had copied the root profile's uncapped opus-4.6 `fallback_providers` into every seat. Fixed: `cad init` writes `fallback_providers: []` + `max_tokens: 8192`; council.py filters provider-error text out of weighting/lead/dissent.
+
+Afternoon (this session, commit 6091845 — NOT pushed):
+* **Guard-hook fix (TDD):** `install_guard_hook()` no longer targets root `~/.hermes/config.yaml` — seat profiles only. The operator drives unguarded; agents don't. `cad doctor`'s guard check was also inverted: it now checks the 5 seat configs (OK when all guarded) and FAILs loudly if the hook ever regresses into root. 6 new tests; suite is 62 passed.
+* **Cost tracking was silently empty** on every council run: `~/.caduceus/models_cache.json` had never been seeded (council never fetches pricing itself — offline-safe by design). Fixed by running `cad models scan`. Cache has a 24h TTL; if `costs: {}` shows up again, re-run `cad models scan`.
+* **First CLEAN council run** of the $100-revenue question: `20260819-123157-d54f01` (seats finisher, recon, envoy · 142.8s · $0.096 total · zero errors, zero 402 text). Lead ENVOY: warm-DM a $150 "pay after you see it" off-market Class C buyer list to 3 verified CRE contacts, after confirming a live payment rail. FINISHER dissent preserved: confirm payment mechanism + data access in writing BEFORE any outreach. **This run starts the Decision #7 kill-criterion clock (2026-08-19): beat bare Hermes on 3 real tasks within a week, or park the engine.**
+
+Seat outages — BOTH RESOLVED same evening (all five seats green in `cad doctor`)
+
+1. **FORGE 401 → recast to OpenRouter.** `alibaba-coding-plan` rejected DASHSCOPE_API_KEY (`HTTP 401 invalid access token or token expired` — likely region-scoped key vs the hardcoded Singapore `coding-intl` endpoint, per Alex). Per Alex's call ("simplest solution: everything on OpenRouter"), forge was recast via `cad models set forge qwen/qwen3.7-plus --provider openrouter` — same model, same qwen family, billed via OpenRouter credits. To restore the Alibaba plan later: fix the key/region (or set ALIBABA_CODING_PLAN_BASE_URL), then `cad models set forge qwen3.7-plus --provider alibaba-coding-plan`.
+2. **SPARRING 404 → tools stripped from its profile.** Root cause: NO OpenRouter endpoint for `nousresearch/hermes-4-405b` (or hermes-3-405b) supports the `tools` parameter, and Hermes attaches tool definitions to every call — each 404 names the surviving tool source. Fixed in ~/.hermes/profiles/sparring/config.yaml (timestamped backup alongside): `agent.disabled_toolsets` = all CLI toolsets, `tools.tool_search.enabled: "off"`, inherited `mcp_servers` (graphiti, wisprflow) set `enabled: false`, model restored to hermes-4-405b (a hermes-3 downgrade was tried mid-debug; it can't help — no 405b endpoint takes tools). **CODIFIED (v0.3.2, this session):** `Seat.tools_capable=False` on sparring now makes `patch_profile_config()` write all three no-tools blocks idempotently, so a profile deletion + `cad init` can no longer regress the 404. Verified live A/B on a throwaway cloned profile (404 before the patch, real answer after) and byte-identical against the hand-fixed profile. If sparring is ever recast onto a tool-capable model, `cad models set` lifts the lockdown automatically.
+
+Remaining operator-side item: **push to GitHub** once Alex approves. Local commits ahead: 8c05c38 (v0.3.1), 6091845 (guard-hook fix), 018bbc5 + later (HANDOFF refreshes), plus the v0.3.2 no-tools-seat work (branch `worktree-keen-moser-c37183`).
+
+Ledger state (4 unsettled runs — only ONE is settleable)
+
+* `20260819-123157-d54f01` — the clean $100 run. Settle this when reality reports back: `cad ledger settle 20260819-123157-d54f01 --winner <seat>`.
+* `20260819-122812-e4ed43` — diagnostic (sparring 404'd, costs empty). Do not settle.
+* `20260819-115005-2ac9a3` — diagnostic (forge 401'd, single-seat memo). Do not settle.
+* `20260819-084035-cd968b` — the INVALID 402 run (PassingWeather question). NEVER settle. The PassingWeather question itself is still unanswered — re-ask it once Grok's review verdict is in, if still wanted.
+
+Hard rules (do not violate)
+
+* NEVER touch ~/projects/passingweather. Separate project, read-only embargo, another agent (Grok) is reviewing it.
+* Never settle the three diagnostic/invalid runs above as real outcomes.
+* No API keys/tokens in commits or logs. outputs/ stays gitignored. The only secret control is the content-based pre-commit scanner at `~/.claude/githooks/pre-commit`, which reaches this repo through a **global** `core.hooksPath` — caduceus does NOT ship a `githooks/` dir of its own, so don't go looking for one (checked 2026-08-19). Verify it fires on commit (`git config --global core.hooksPath` must still point there); a global hooksPath also means any repo-local `.git/hooks` here would be silently ignored.
+* Root ~/.hermes/config.yaml: don't add hooks (now enforced by code + doctor FAIL), don't change its models. Its opus-4.6 fallback is Alex's daily-driver choice — flag concerns, don't edit.
+* One writer per repo. If another agent/session is active in this tree, stop.
+* Clean-room rule: patterns from Jeff Emanuel's flywheel are fair game; his code is not (license bars it).
+
+Optional hardening, only if Alex asks: seat gateways (`cad seats up`), cron briefs (`cad init --cron`), Telegram bridge (`cad telegram runbook`).
+
+Quick orientation commands
+
+```
+cd ~/projects/caduceus
+cad doctor                 # health; every FAIL names its fix
+git log --oneline -5       # 6091845 = guard-hook fix (unpushed)
+ls -t ~/.caduceus/runs/    # council memos, newest first
+cad ledger runs            # unsettled decisions
+```
+
+Context that isn't in this repo
+
+* PassingWeather (~/projects/passingweather): Alex's private wellness-notebook PWA, under independent review by Grok 4.6. Decision pending: cut to the letter / ship / park. Its verdict may become the council's next real task.
+* Graphiti memory group for this project: `caduceus` (incident root causes and durable learnings live there).

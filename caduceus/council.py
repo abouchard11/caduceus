@@ -60,6 +60,34 @@ def extract_json(text: str) -> Optional[Dict]:
     return None
 
 
+
+# Provider/transport failures that Hermes narrates as plain assistant text
+# (exit 0, no JSON, no transport-level error) rather than raising a hard
+# error. Left unfiltered, the lenient "unparseable but present" rescue below
+# would promote this text to a seat's `position` - and it can outrank a real
+# draft, since a fresh ledger gives every seat the same 0.5 prior (2026-08-19:
+# a shared fallback's HTTP 402 billing error became a council's headline
+# recommendation ahead of a seat that answered for real). Anything matching
+# this signature is treated as an error, never a position.
+PROVIDER_ERROR_RE = re.compile(
+    r"\b(HTTP\s*[45]\d{2}\b|credits?\s+exhausted|insufficient[_ ]quota|"
+    r"rate[- ]limit(?:ed)?|billing\s+or\s+credits|quota\s+exceeded|"
+    r"account\s+entitlement\s+is\s+exhausted|too\s+many\s+requests|"
+    r"service\s+(?:is\s+)?(?:temporarily\s+)?(?:unavailable|overloaded))",
+    re.IGNORECASE,
+)
+
+
+def looks_like_provider_error(text: str) -> bool:
+    """True if `text` reads as an unparsed provider/billing error rather than
+    a real position. Length-capped so a long genuine answer that happens to
+    quote or discuss an error message in passing isn't thrown out too."""
+    if not text:
+        return False
+    sample = text.strip()
+    return bool(PROVIDER_ERROR_RE.search(sample)) and len(sample) < 800
+
+
 @dataclass
 class Draft:
     seat: str
@@ -83,6 +111,10 @@ def parse_draft(reply: SeatReply, rnd: int) -> Draft:
                      raw=reply.text, parse_ok=False, error=reply.error)
     obj = extract_json(reply.text)
     if obj is None:
+        if looks_like_provider_error(reply.text):
+            return Draft(reply.seat, rnd, "", 0.0, [], [], "",
+                         raw=reply.text, parse_ok=False,
+                         error=reply.text.strip()[:300])
         # unparseable but present: keep the text as the position
         return Draft(reply.seat, rnd, reply.text[:2000], 0.5, [], [],
                      reply.text[:400], raw=reply.text, parse_ok=False)

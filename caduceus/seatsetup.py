@@ -80,7 +80,207 @@ def model_block(seat: Seat) -> str:
         "model:\n"
         f"  default: {seat.model}\n"
         f"  provider: {seat.provider}\n"
+        "  max_tokens: 8192\n"
     )
+
+
+def fallback_block() -> str:
+    # `hermes profile create --clone` copies the root profile's
+    # fallback_providers block verbatim into every new seat. Left alone this
+    # is a double hazard: (1) every seat silently reroutes to the SAME
+    # fallback model on any primary hiccup, which - if it ever succeeds -
+    # collapses the model-family heterogeneity Decision #4 requires without
+    # anyone noticing; (2) that fallback target may be uncapped and far more
+    # expensive than the seat's real casting (2026-08-19: a shared
+    # anthropic/claude-opus-4.6 fallback 402'd requesting 128k tokens and its
+    # raw billing error nearly became a council's headline recommendation).
+    # Council seats must fail loud and attributably, not reroute in secret.
+    return "fallback_providers: []\n"
+
+
+# ---------------------------------------------------------------- nested yaml
+# The editor above swaps whole TOP-LEVEL blocks. Stripping tools needs the
+# opposite: reach INSIDE `agent:`, `tools:` and `mcp_servers:` and change one
+# child while every sibling key (max_turns, an MCP server's command/args) is
+# preserved. Still line-based and comment-safe - we never round-trip YAML.
+# Assumption: hermes writes nested mappings with a uniform indent (2 spaces);
+# the actual indent is detected per block and reused when writing.
+
+def _top_bounds(lines: List[str], key: str) -> Optional[Tuple[int, int]]:
+    """(header index, end of body exclusive) for a top-level `key:` block."""
+    for i, line in enumerate(lines):
+        if re.match(rf"^{re.escape(key)}\s*:", line):
+            j, last = i + 1, i + 1
+            while j < len(lines):
+                if not lines[j].strip():
+                    j += 1
+                    continue
+                if lines[j].startswith((" ", "\t")):
+                    j += 1
+                    last = j
+                    continue
+                break
+            return i, last
+    return None
+
+
+def _indent_of(line: str) -> str:
+    return line[:len(line) - len(line.lstrip())]
+
+
+def _body_indent(lines: List[str], start: int, end: int) -> str:
+    for i in range(start, end):
+        if lines[i].strip() and lines[i].startswith((" ", "\t")):
+            return _indent_of(lines[i])
+    return "  "
+
+
+def _child_bounds(lines: List[str], start: int, end: int, child: str,
+                  indent: str) -> Optional[Tuple[int, int]]:
+    """Bounds of `<indent><child>:` and its deeper-indented body, in-block."""
+    pat = re.compile(rf"^{indent}{re.escape(child)}\s*:")
+    for i in range(start, end):
+        if pat.match(lines[i]) and _indent_of(lines[i]) == indent:
+            j, last = i + 1, i + 1
+            while j < end:
+                if not lines[j].strip():
+                    j += 1
+                    continue
+                if len(_indent_of(lines[j])) > len(indent):
+                    j += 1
+                    last = j
+                    continue
+                break
+            return i, last
+    return None
+
+
+def _reindent(template: List[str], indent: str) -> List[str]:
+    """Retab lines written at the canonical 2-space depth to `indent`."""
+    if indent == "  ":
+        return list(template)
+    out = []
+    for line in template:
+        depth = len(_indent_of(line)) // 2
+        out.append(indent * depth + line.lstrip())
+    return out
+
+
+def child_keys(text: str, top_key: str) -> List[str]:
+    """Direct child mapping keys of a top-level block, in file order."""
+    lines = text.splitlines()
+    bounds = _top_bounds(lines, top_key)
+    if not bounds:
+        return []
+    header, end = bounds
+    indent = _body_indent(lines, header + 1, end)
+    pat = re.compile(rf"^{indent}([A-Za-z0-9_.\-]+)\s*:")
+    out = []
+    for i in range(header + 1, end):
+        m = pat.match(lines[i])
+        if m and _indent_of(lines[i]) == indent:
+            out.append(m.group(1))
+    return out
+
+
+def list_items(text: str, top_key: str, child_key: str) -> List[str]:
+    """Values of a `top_key: / child_key: / - item` list. [] when absent."""
+    lines = text.splitlines()
+    bounds = _top_bounds(lines, top_key)
+    if not bounds:
+        return []
+    header, end = bounds
+    indent = _body_indent(lines, header + 1, end)
+    cb = _child_bounds(lines, header + 1, end, child_key, indent)
+    if not cb:
+        return []
+    out = []
+    for i in range(cb[0] + 1, cb[1]):
+        s = lines[i].strip()
+        if s.startswith("- "):
+            out.append(s[2:].strip())
+    return out
+
+
+def set_child_block(text: str, top_key: str, child_key: str,
+                    template: List[str]) -> str:
+    """Replace-in-place (or append) one child block under a top-level key.
+    `template` is the full child block written at 2-space indentation."""
+    lines = text.splitlines()
+    bounds = _top_bounds(lines, top_key)
+    if not bounds:
+        body = "\n".join(template)
+        return text.rstrip("\n") + f"\n{top_key}:\n{body}\n"
+    header, end = bounds
+    indent = _body_indent(lines, header + 1, end)
+    block = _reindent(template, indent)
+    cb = _child_bounds(lines, header + 1, end, child_key, indent)
+    if cb:
+        out = lines[:cb[0]] + block + lines[cb[1]:]
+    else:
+        out = lines[:end] + block + lines[end:]
+    return "\n".join(out) + "\n"
+
+
+def set_scalar_in_child(text: str, top_key: str, child_key: str,
+                        scalar_key: str, value: str) -> str:
+    """Set `top_key: / child_key: / scalar_key: value`, creating the block or
+    the child as needed and leaving every sibling key untouched."""
+    lines = text.splitlines()
+    bounds = _top_bounds(lines, top_key)
+    if not bounds:
+        return (text.rstrip("\n")
+                + f"\n{top_key}:\n  {child_key}:\n    {scalar_key}: {value}\n")
+    header, end = bounds
+    indent = _body_indent(lines, header + 1, end)
+    cb = _child_bounds(lines, header + 1, end, child_key, indent)
+    if not cb:
+        block = [f"{indent}{child_key}:", f"{indent * 2}{scalar_key}: {value}"]
+        return "\n".join(lines[:end] + block + lines[end:]) + "\n"
+    ci, cend = cb
+    pat = re.compile(rf"^{indent * 2}{re.escape(scalar_key)}\s*:")
+    for i in range(ci + 1, cend):
+        if pat.match(lines[i]) and _indent_of(lines[i]) == indent * 2:
+            lines[i] = f"{indent * 2}{scalar_key}: {value}"
+            return "\n".join(lines) + "\n"
+    out = lines[:cend] + [f"{indent * 2}{scalar_key}: {value}"] + lines[cend:]
+    return "\n".join(out) + "\n"
+
+
+# ---------------------------------------------------------------- no-tools seats
+# 2026-08-19: SPARRING (nousresearch/hermes-4-405b) 404'd every call - "No
+# endpoints found that support tool use". No OpenRouter endpoint for any 405B
+# Hermes takes the `tools` parameter, and Hermes attaches tool definitions to
+# every request from three independent sources: the platform toolsets, the
+# tool_search index, and each enabled MCP server. All three must be off or the
+# 404 comes straight back - each failure only names the source still standing.
+# This was hand-patched into the profile first; codified here so that a
+# from-scratch `cad init` (or a profile deletion) cannot regress it.
+
+CLI_TOOLSETS = [
+    "bfl", "browser", "clarify", "code_execution", "computer_use", "cronjob",
+    "delegation", "file", "image_gen", "kanban", "memory", "session_search",
+    "skills", "terminal", "todo", "tts", "vision", "web", "x_search",
+]
+
+
+def no_tools_toolsets(text: str) -> List[str]:
+    """Toolsets to disable: the known CLI set, unioned with whatever CLI
+    toolsets this profile itself declares (Hermes ships new ones over time and
+    a single missed toolset re-attaches tool definitions)."""
+    declared = list_items(text, "platform_toolsets", "cli")
+    return ["tool_search"] + sorted(set(CLI_TOOLSETS) | set(declared))
+
+
+def apply_no_tools(text: str) -> str:
+    """Strip every tool-definition source from a seat config. Idempotent."""
+    template = ["  disabled_toolsets:"]
+    template += [f"    - {name}" for name in no_tools_toolsets(text)]
+    out = set_child_block(text, "agent", "disabled_toolsets", template)
+    out = set_scalar_in_child(out, "tools", "tool_search", "enabled", '"off"')
+    for server in child_keys(out, "mcp_servers"):
+        out = set_scalar_in_child(out, "mcp_servers", server, "enabled", "false")
+    return out
 
 
 def api_server_block(seat: Seat, key: str) -> str:
@@ -168,22 +368,32 @@ def patch_profile_config(seat: Seat, api_key: str, log: List[str],
     cfg = profile_dir(seat.name) / "config.yaml"
     if not cfg.exists():
         # minimal standalone config
-        body = model_block(seat)
+        body = model_block(seat) + "\n" + fallback_block()
         if enable_api:
             body += "\n" + api_server_block(seat, api_key)
+        if not seat.tools_capable:
+            body = apply_no_tools(body)
         cfg.parent.mkdir(parents=True, exist_ok=True)
         cfg.write_text(body)
         log.append(f"[+] wrote fresh config for '{seat.name}'")
         return
     text = cfg.read_text()
     new_text = replace_top_block(text, "model", model_block(seat))
+    new_text = replace_top_block(new_text, "fallback_providers", fallback_block())
     if enable_api and not has_top_block(new_text, "platforms"):
         new_text += "\n" + api_server_block(seat, api_key)
+    if not seat.tools_capable:
+        # never the inverse: a tools-CAPABLE seat is left exactly as found, so
+        # an operator's deliberate toolset restrictions survive `cad init`
+        new_text = apply_no_tools(new_text)
     if new_text != text:
         backup(cfg)
         cfg.write_text(new_text)
         log.append(f"[+] patched config for '{seat.name}' "
                    f"(model={seat.model} provider={seat.provider} port={seat.port})")
+        if not seat.tools_capable:
+            log.append(f"[+] tools stripped for '{seat.name}' - {seat.model} has "
+                       "no tool-capable endpoint (toolsets, tool_search, mcp)")
     else:
         log.append(f"[=] config for '{seat.name}' already correct")
     # sanity: openrouter seats need the key in the profile env
@@ -223,11 +433,15 @@ def install_skill(seat_names: List[str], log: List[str]) -> None:
 
 def install_guard_hook(log: List[str], write: bool = False,
                        profiles: Optional[List[str]] = None) -> str:
+    # Seat profiles only - never the operator's own root config.yaml. Alex
+    # drives unguarded; agents don't. (2026-08-19 incident: this used to
+    # prepend hermes_home()/config.yaml unconditionally, so `cad init
+    # --guard-write` silently hooked the operator's daily-driver profile
+    # alongside the seats. The root hook was pulled by hand mid-session;
+    # it must not come back on the next re-run.)
     guard_cmd = f"{shutil.which('cad') or 'cad'} guard hook"
     snippet = hooks_block(guard_cmd)
-    targets = [config.hermes_home() / "config.yaml"]
-    for name in (profiles or []):
-        targets.append(profile_dir(name) / "config.yaml")
+    targets = [profile_dir(name) / "config.yaml" for name in (profiles or [])]
     if not write:
         log.append("[i] guard hook NOT written (pass --write). Add to config.yaml:")
         log.append(snippet)

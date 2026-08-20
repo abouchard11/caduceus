@@ -80,14 +80,33 @@ def checks() -> List[Tuple[str, str, str]]:
     except sqlite3.Error as e:
         out.append((FAIL, "ledger", f"sqlite error: {e}"))
 
-    # guard
-    root_cfg = config.hermes_home() / "config.yaml"
-    if root_cfg.exists() and "cad guard hook" in root_cfg.read_text():
-        out.append((OK, "guard hook", "wired into root config.yaml (fail_closed)"))
+    # guard - seat profiles only. The operator drives unguarded; agents don't.
+    # (2026-08-19 incident: install_guard_hook() used to also target root
+    # config.yaml, so this check has to watch for that regressing too.)
+    guarded, unguarded = [], []
+    for name in SEATS:
+        cfg = profile_dir(name) / "config.yaml"
+        if cfg.exists() and "cad guard hook" in cfg.read_text():
+            guarded.append(name)
+        else:
+            unguarded.append(name)
+    if guarded and not unguarded:
+        out.append((OK, "guard hook", f"wired into {len(guarded)} seat profile(s) (fail_closed)"))
+    elif guarded:
+        out.append((WARN, "guard hook",
+                    f"wired into {', '.join(guarded)}; missing from "
+                    f"{', '.join(unguarded)} - run `cad init --guard-write` or "
+                    "`cad guard install --write`"))
     else:
         out.append((WARN, "guard hook",
-                    "not in root config.yaml - run `cad init --guard-write` or "
-                    "paste the block from `cad guard install`"))
+                    "not installed in any seat profile - run `cad init "
+                    "--guard-write` or paste the block from `cad guard install`"))
+
+    root_cfg = config.hermes_home() / "config.yaml"
+    if root_cfg.exists() and "cad guard hook" in root_cfg.read_text():
+        out.append((FAIL, "guard hook (root)",
+                    "guard hook found in root config.yaml - the operator's own "
+                    "profile must stay unguarded; remove the hooks: block by hand"))
     from . import guard as g
     sample = g.evaluate("rm -rf /")
     out.append((OK if sample and sample.severity == "CRITICAL" else FAIL,
