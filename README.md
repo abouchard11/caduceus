@@ -91,4 +91,6 @@ decomposition first, shared substrate over central orchestration, two-person
 rule, command guards) follow the agentic-coding-flywheel school — clean-room
 reimplementation, no third-party code vendored.
 
-MIT. Built by MidnightDev.
+## Rights
+
+**Proprietary — all rights reserved. No license is granted.** See [LICENSE](LICENSE).
