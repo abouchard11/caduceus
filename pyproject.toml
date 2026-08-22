@@ -8,7 +8,7 @@ version = "0.3.2"
 description = "Multi-seat decision engine on Hermes Agent: council deliberation, believability ledger, command guard. The operator is the Shaper; the seats are staff."
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "MIT" }
+license = { text = "Proprietary - All Rights Reserved" }
 authors = [{ name = "Alex Bouchard (MidnightDev)" }]
 dependencies = []            # stdlib only, on purpose
 
