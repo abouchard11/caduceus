@@ -96,7 +96,8 @@ def test_recast_warns_on_family_collapse():
     models.set_seat_model("finisher", "qwen/qwen3.8-27b")
     models.set_seat_model("recon", "qwen/qwen3.5-27b")
     _, log = models.set_seat_model("sparring", "qwen/qwen3.5-9b")
-    assert any("conformity trap" in line for line in log)
+    assert any("FINISHER shares FORGE's family" in line for line in log)
+    assert any("council spans 1 of 4" in line for line in log)
 
 
 def test_estimate_cost():
