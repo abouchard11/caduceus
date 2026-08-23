@@ -18,7 +18,16 @@ from typing import Dict, List, Optional
 # ---------------------------------------------------------------- paths
 
 def hermes_home() -> Path:
-    return Path(os.environ.get("HERMES_HOME", str(Path.home() / ".hermes")))
+    """Root Hermes home (~/.hermes), never a seat's profile subdir.
+
+    A seat session sets HERMES_HOME to ~/.hermes/profiles/<seat>, but seats
+    live *under* the root — profile_dir() and every other path here must
+    resolve from the root regardless of which seat context runs `cad`.
+    """
+    h = Path(os.environ.get("HERMES_HOME", str(Path.home() / ".hermes"))).expanduser()
+    if h.parent.name == "profiles":
+        return h.parent.parent
+    return h
 
 
 def caduceus_home() -> Path:
