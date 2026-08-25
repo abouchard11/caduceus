@@ -95,6 +95,21 @@ def _recent_memos(n: int = 6) -> List[Dict]:
     return out
 
 
+def _budget_status() -> Dict:
+    """Get current budget status for dashboard."""
+    from . import budgets
+    try:
+        status, spend, ceiling = budgets.check_daily_budget()
+        return {
+            "status": status,
+            "spend": spend,
+            "ceiling": ceiling,
+            "percent": (spend / ceiling * 100) if ceiling > 0 else 0
+        }
+    except Exception:
+        return {"status": "unknown", "spend": 0, "ceiling": 0, "percent": 0}
+
+
 def build() -> str:
     led = Ledger()
     table = led.table()
@@ -153,6 +168,22 @@ def build() -> str:
     else:
         kb_html = "<span class='dim'>no kanban.db found (hermes kanban init)</span>"
 
+    budget = _budget_status()
+    budget_color = "ok" if budget["status"] == "ok" else ("warn" if budget["status"] == "warn" else "bad")
+    budget_html = f"""
+    <div class="card">
+        <h2>Daily Budget</h2>
+        <div class="stat">
+            <span class="{budget_color}">${budget['spend']:.2f}</span>
+            <span class="dim"> / ${budget['ceiling']:.2f} ({budget['percent']:.0f}%)</span>
+        </div>
+        <div class="bar"><i style="width:{min(budget['percent'], 100)}%"></i></div>
+        <div class="dim" style="margin-top:8px;font-size:11px">
+            Status: <span class="{budget_color}">{budget['status']}</span>
+        </div>
+    </div>
+    """
+
     ts = time.strftime("%Y-%m-%d %H:%M:%S")
     return f"""<!doctype html><html><head><meta charset="utf-8">
 <title>CADUCEUS - engine status</title><style>{CSS}</style></head><body>
@@ -170,6 +201,7 @@ def build() -> str:
 <div class="card"><h2>Guard - last events</h2><table>
 <tr><th>action</th><th>rule</th><th>command</th></tr>{guard_rows}</table></div>
 <div class="card"><h2>Kanban</h2>{kb_html}</div>
+{budget_html}
 </div>
 <footer>caduceus - the operator is the Shaper; the seats are the staff. Unsettled advice never improves the ledger.</footer>
 </body></html>"""

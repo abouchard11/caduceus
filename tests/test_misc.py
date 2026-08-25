@@ -22,6 +22,22 @@ def test_heterogeneity_warning():
     assert not heterogeneity_warnings([SEATS["forge"], SEATS["finisher"]])
 
 
+def test_finisher_must_not_share_forge_family():
+    from dataclasses import replace
+    finisher_as_qwen = replace(SEATS["finisher"], family="qwen")
+    warns = heterogeneity_warnings([SEATS["forge"], finisher_as_qwen])
+    assert any("FINISHER shares FORGE" in w for w in warns)
+
+
+def test_duplicate_family_warns_when_not_all_same():
+    from dataclasses import replace
+    a = replace(SEATS["forge"], family="qwen")
+    b = replace(SEATS["finisher"], family="qwen")
+    c = SEATS["recon"]  # deepseek
+    warns = heterogeneity_warnings([a, b, c])
+    assert any("duplicate" in w for w in warns)
+
+
 def test_seat_families_are_heterogeneous_by_design():
     fams = {SEATS[n].family for n in config.FULL_COUNCIL}
     assert len(fams) == 4, "full council must span 4 model families"

@@ -18,7 +18,16 @@ from typing import Dict, List, Optional
 # ---------------------------------------------------------------- paths
 
 def hermes_home() -> Path:
-    return Path(os.environ.get("HERMES_HOME", str(Path.home() / ".hermes")))
+    """Root Hermes home (~/.hermes), never a seat's profile subdir.
+
+    A seat session sets HERMES_HOME to ~/.hermes/profiles/<seat>, but seats
+    live *under* the root — profile_dir() and every other path here must
+    resolve from the root regardless of which seat context runs `cad`.
+    """
+    h = Path(os.environ.get("HERMES_HOME", str(Path.home() / ".hermes"))).expanduser()
+    if h.parent.name == "profiles":
+        return h.parent.parent
+    return h
 
 
 def caduceus_home() -> Path:
@@ -234,13 +243,26 @@ def seat_list(names: Optional[str]) -> List[Seat]:
 
 
 def heterogeneity_warnings(seats: List[Seat]) -> List[str]:
-    """Warn when a council collapses into one model family."""
+    """Warn when a council loses model-family diversity."""
     fams = [s.family for s in seats]
     warns = []
     if len(seats) >= 2 and len(set(fams)) == 1:
         warns.append(
             f"all seats are family '{fams[0]}' - conformity risk is maximal; "
             "add a seat from another family"
+        )
+    by_name = {s.name: s.family for s in seats}
+    if "forge" in by_name and "finisher" in by_name:
+        if by_name["forge"] == by_name["finisher"]:
+            warns.append(
+                "FINISHER shares FORGE's family - violates the "
+                "'FINISHER never shares a family with FORGE' rule"
+            )
+    if len(set(fams)) < len(seats):
+        dupes = sorted({f for f in fams if fams.count(f) > 1})
+        warns.append(
+            f"council spans {len(set(fams))} of {len(seats)} model families "
+            f"(duplicate: {', '.join(dupes)}) - same-family seats agree too easily"
         )
     return warns
 

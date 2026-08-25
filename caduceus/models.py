@@ -110,9 +110,15 @@ def set_seat_model(seat_name: str, model_id: str, provider: str = "openrouter",
 
     new_seat = effective_seat(seat_name)
     fams = {effective_seat(n).family for n in config.FULL_COUNCIL}
-    if len(fams) < 3:
-        log.append(f"[!] council now spans only {len(fams)} model families - "
-                   "you are re-entering the conformity trap. Reconsider.")
+    forge_fam = effective_seat("forge").family
+    finisher_fam = effective_seat("finisher").family
+    if finisher_fam == forge_fam:
+        log.append(f"[!] FINISHER shares FORGE's family ({forge_fam}) - hard rule "
+                   "violation ('FINISHER never shares a family with FORGE'). Reconsider.")
+    if len(fams) < len(config.FULL_COUNCIL):
+        log.append(f"[!] council spans {len(fams)} of {len(config.FULL_COUNCIL)} model "
+                   f"families ({', '.join(sorted(fams))}) - same-family seats agree "
+                   "too easily.")
 
     # patch the hermes profile so -z / gateway calls actually use it
     from . import seatsetup  # late import: avoids cycle at module load

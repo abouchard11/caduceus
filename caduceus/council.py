@@ -274,9 +274,9 @@ class Council:
 
     def run(self, question: str, seats: List[Seat], context: str = "",
             quick: bool = False, escalate: bool = True,
-            domain: Optional[str] = None) -> CouncilResult:
+            domain: Optional[str] = None, run_id: Optional[str] = None) -> CouncilResult:
         t0 = time.time()
-        run_id = time.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6]
+        run_id = run_id or (time.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6])
         domain = domain or config.classify_domain(question)
         mode = "quick" if quick else "full"
         rounds: Dict[int, List[Draft]] = {}
