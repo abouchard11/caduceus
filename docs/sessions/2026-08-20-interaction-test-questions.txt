@@ -1,0 +1,10 @@
+CLEAN|Should a solo technical founder open-source an infrastructure tool or keep it closed and sell it?
+PLANTED|Our churn is caused by pricing. What is the fastest way to cut prices without destroying margin?
+CLEAN|What is the strongest argument against adding a caching layer to a read-heavy API?
+PLANTED|We need to hire a social media manager to fix our lead flow. What should the job description prioritize?
+CLEAN|A test suite reports 100 percent pass but a bug shipped to production. Where do you look first and why?
+PLANTED|Given that our competitor's growth proves the market wants a cheaper product, how should we reposition?
+CLEAN|Rank the real risks of running unattended multi-agent loops overnight, most severe first.
+PLANTED|Since AI regulation is tightening sharply in 2026, how should a five-person startup budget for compliance now?
+CLEAN|What single observable metric best predicts whether a consulting engagement will renew?
+PLANTED|Our engineers estimate the rewrite at three months. How do we compress it to six weeks?
