@@ -8,7 +8,7 @@ import sys
 import webbrowser
 from pathlib import Path
 
-from . import config, dashboard, doctor, guard, models, seatsetup, telegram
+from . import config, dashboard, doctor, guard, models, seatsetup, telegram, budgets
 from .config import SEATS, seat_list, heterogeneity_warnings
 from .council import Council, extract_json
 from .hermes import MockTransport, OneshotTransport
@@ -61,12 +61,32 @@ def cmd_council_ask(args):
         _print(f"[warn] {w}")
     mock = MockTransport() if args.dry_run else None
     council = Council(transport="mock" if args.dry_run else args.transport, mock=mock)
+    
+    # Generate run_id upfront so we can create budget BEFORE dispatch (F2 fix)
+    import time, uuid
+    run_id = time.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6]
+    
+    # Create budget BEFORE council.run() with session IDs that ApiTransport will use
+    # Note: OneshotTransport doesn't write to state.db, so spend tracking won't work for it
+    if not args.dry_run:
+        ceiling = budgets.CEILINGS["quick_council"]["hard"] if args.quick else budgets.CEILINGS["full_council"]["hard"]
+        # ApiTransport generates session IDs as: caduceus-{seat.name}-{run_id}
+        session_ids = [f"caduceus-{s.name}-{run_id}" for s in seats]
+        budgets.create_budget(
+            run_id=run_id,
+            origin="council",
+            seats=[s.name for s in seats],
+            ceiling_usd=ceiling,
+            session_ids=session_ids
+        )
+    
     result = council.run(
         question=args.question,
         seats=seats,
         context=_read_context(args),
         quick=args.quick,
         escalate=not args.no_escalate,
+        run_id=run_id,  # Pass the pre-generated run_id
     )
     _print(f"run:      {result.run_id}   mode: {result.mode}   "
            f"domain: {result.domain}   {result.elapsed_s}s")
@@ -304,6 +324,88 @@ def cmd_models_value(args):
         _print(f"{r['seat']:<10}{r['model']:<38}{wml:<10}{spend:<10}{upw}")
 
 
+def cmd_budget_set(args):
+    """Set ceiling for a run. Raising requires --grantor (two-person rule)."""
+    run_id = args.run
+    ceiling = args.ceiling
+    grantor = args.grantor
+    
+    budget = budgets.load_budget(run_id)
+    if not budget:
+        _print(f"error: budget not found for run {run_id}")
+        return
+    
+    old_ceiling = budget.ceiling_usd
+    if ceiling > old_ceiling and not grantor:
+        _print(f"error: raising ceiling from ${old_ceiling:.2f} to ${ceiling:.2f} requires --grantor")
+        _print("       (two-person rule: a different seat or operator must approve)")
+        return
+    
+    success, msg = budgets.set_ceiling(run_id, ceiling, grantor)
+    if success:
+        _print(f"updated budget {run_id}: ${old_ceiling:.2f} -> ${ceiling:.2f}")
+        if grantor:
+            _print(f"approved by: {grantor}")
+    else:
+        _print(f"error: {msg}")
+
+
+def cmd_budget_status(args):
+    """Show current spend vs ceilings."""
+    # Daily budget
+    daily_status, daily_spend, daily_ceiling = budgets.check_daily_budget()
+    _print("Daily Budget:")
+    _print(f"  spend:   ${daily_spend:.4f} (effective, with drift multiplier)")
+    _print(f"  ceiling: ${daily_ceiling:.2f}")
+    _print(f"  status:  {daily_status}")
+    _print()
+    
+    # Active run budgets
+    active = budgets.list_active_budgets()
+    if not active:
+        _print("No active run budgets")
+        return
+    
+    _print(f"Active Run Budgets ({len(active)}):")
+    for b in active:
+        status, spend, ceiling = budgets.check_budget(b.run_id)
+        paused = " [PAUSED]" if b.paused else ""
+        _print(f"  {b.run_id}: ${spend:.4f} / ${ceiling:.2f} ({status}){paused}")
+        _print(f"    origin: {b.origin}  seats: {','.join(b.seats)}")
+
+
+def cmd_budget_list(args):
+    """List all active budgets."""
+    active = budgets.list_active_budgets()
+    if not active:
+        _print("no active budgets")
+        return
+    
+    for b in active:
+        status, spend, ceiling = budgets.check_budget(b.run_id)
+        paused = " [PAUSED]" if b.paused else ""
+        _print(f"{b.run_id}: ${spend:.4f} / ${ceiling:.2f} ({status}){paused}")
+        _print(f"  origin: {b.origin}  seats: {','.join(b.seats)}  sessions: {len(b.session_ids or [])}")
+
+
+def cmd_budget_pause(args):
+    """Pause a budget (stop all tool calls)."""
+    run_id = args.run
+    if budgets.pause_budget(run_id):
+        _print(f"paused budget {run_id}")
+    else:
+        _print(f"error: budget not found for run {run_id}")
+
+
+def cmd_budget_resume(args):
+    """Resume a paused budget."""
+    run_id = args.run
+    if budgets.resume_budget(run_id):
+        _print(f"resumed budget {run_id}")
+    else:
+        _print(f"error: budget not found for run {run_id}")
+
+
 def cmd_telegram_init(args):
     p = telegram.ensure_settings_file()
     s = telegram.load_settings()
@@ -504,6 +606,24 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(fn=cmd_models_set)
     s = msub.add_parser("value", help="$ per win by seat/model from the ledger")
     s.set_defaults(fn=cmd_models_value)
+
+    b = sub.add_parser("budget", help="spend guard: per-run budgets + daily aggregation")
+    bsub = b.add_subparsers(dest="bcmd", required=True)
+    s = bsub.add_parser("set", help="set ceiling for a run (requires two-person approval to raise)")
+    s.add_argument("--run", required=True, help="run_id")
+    s.add_argument("--ceiling", required=True, type=float, help="new ceiling in USD")
+    s.add_argument("--grantor", help="who approved the raise (required if raising)")
+    s.set_defaults(fn=cmd_budget_set)
+    s = bsub.add_parser("status", help="show current spend vs ceilings")
+    s.set_defaults(fn=cmd_budget_status)
+    s = bsub.add_parser("list", help="list active budgets")
+    s.set_defaults(fn=cmd_budget_list)
+    s = bsub.add_parser("pause", help="pause a budget (stop all tool calls)")
+    s.add_argument("--run", required=True, help="run_id")
+    s.set_defaults(fn=cmd_budget_pause)
+    s = bsub.add_parser("resume", help="resume a paused budget")
+    s.add_argument("--run", required=True, help="run_id")
+    s.set_defaults(fn=cmd_budget_resume)
 
     s = sub.add_parser("dashboard", help="regenerate the HTML status board")
     s.add_argument("--open", action="store_true")

@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from . import config
+from . import budgets
 
 TOKEN_TTL_SECONDS = 15 * 60
 
@@ -201,7 +202,44 @@ def decide(payload: Dict) -> Tuple[int, Optional[Dict]]:
             continue
         verdicts.append((rule, cmd))
 
+    # Check budget before pattern matching (spec: budget is the primary choke point)
+    budget = budgets.find_budget_for_session(session) if session else None
+    budget_warn_context = None
+    if budget:
+        status, spend, ceiling = budgets.check_budget(budget.run_id)
+        if status == "block":
+            _log({
+                "action": "block-budget",
+                "run_id": budget.run_id,
+                "spend": spend,
+                "ceiling": ceiling,
+                "session": session,
+            })
+            return 2, {
+                "decision": "block",
+                "reason": f"[caduceus-budget] BLOCKED: run {budget.run_id} exceeded ceiling. "
+                         f"Spend ${spend:.4f} >= ceiling ${ceiling:.2f}. "
+                         f"Raise ceiling with: cad budget set --run {budget.run_id} --ceiling <usd>"
+            }
+        elif status == "warn":
+            _log({
+                "action": "warn-budget",
+                "run_id": budget.run_id,
+                "spend": spend,
+                "ceiling": ceiling,
+                "session": session,
+            })
+            # F4 fix: capture warning context to return to model
+            budget_warn_context = (
+                f"[caduceus-budget] WARNING: run {budget.run_id} approaching ceiling. "
+                f"Spend ${spend:.4f} / ${ceiling:.2f} ({spend/ceiling*100:.0f}%). "
+                f"Consider wrapping up soon."
+            )
+
     if not verdicts:
+        # F4 fix: return budget warning context if we have one
+        if budget_warn_context:
+            return 0, {"context": budget_warn_context}
         return 0, None
 
     # highest severity wins
