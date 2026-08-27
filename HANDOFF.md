@@ -5,8 +5,8 @@ What this project is
 Caduceus: a five-seat AI decision council that runs on top of Hermes Agent. Alex is the Shaper (PrinciplesYou); the seats compensate his measured gaps. Seats deliberate independently, cross-examine anonymized drafts, and a believability-weighted synthesis picks a lead — no voting, dissent preserved as a Minority Report. `docs/DECISIONS.md` and `AGENTS.md` are load-bearing; read them before changing anything.
 
 * Repo: github.com/abouchard11/caduceus (private) · local: ~/projects/caduceus
-* Engine: stdlib-only Python. CLI = `cad` (installed editable via pip). `pyproject` says 0.3.3 (uncommitted; origin is 0.3.2).
-* main = `5ad6739`, **fully pushed** — local and origin are identical. Nothing is waiting on an operator push.
+* Engine: stdlib-only Python. CLI = `cad` (installed editable via pip). Version 0.3.3.
+* main = `a0b7131` (v0.3.3, PR #4), **fully pushed** — local and origin identical.
 
 What landed since the 2026-08-19 handoff (all on origin/main)
 
@@ -73,17 +73,12 @@ the cast model in an unrelated block while `model.default` said something else, 
 `provider` at all — so forge reported `[OK]` while pointed at a 401ing endpoint. Now reads
 `model.default` + `model.provider` and names the fix.
 
-In flight, uncommitted — v0.3.3 on branch `worktree-frosty-antonelli-143bc8` (rebased onto `5ad6739`)
+MERGED — v0.3.3 landed on main 2026-08-26 evening (PR #4, merge a0b7131)
 
-**113 tests green** (99 on main + 14 new). Files: `caduceus/seatsetup.py`, `caduceus/doctor.py`,
-`caduceus/__init__.py`, `pyproject.toml`, `CHANGELOG.md`, `tests/test_seatsetup.py`,
-`tests/test_doctor.py`, this file. Nothing committed, nothing pushed.
-* `tools_attached_sources()` / `restore_tools()` / `scalar_in_top()` — the audit and inverse halves
-  of the lockdown, built on the same readers as the writer so the two cannot drift apart.
-* `cad doctor` now audits the lockdown in BOTH directions: `TOOLS-ATTACHED[...]` → FAIL on a
-  tools-incapable seat, `TOOLS-STRIPPED-STALE` → WARN on a capable one. Every row names its fix.
-* Mutation-tested: a no-op verifier and a disabled check both turn the suite red. Each defect above
-  had a failing test before it had a fix.
+**116 tests green.** The editable-install `cad` CLI now runs it: doctor audits model.default +
+provider, the tools lockdown in both directions, and cron health. Branch deleted after merge;
+`pyproject` and origin are 0.3.3. Settlement sheet awaiting Alex: `~/.caduceus/SETTLEMENT-2026-08-26.md`
+(5 pre-filled verdicts; also in ~/CLAUDE-PENDING-ACTIONS.md and the ⚖️ artifact).
 
 Ledger state — 12 runs, 1 settled, 11 unsettled
 
