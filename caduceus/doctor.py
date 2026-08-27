@@ -10,7 +10,8 @@ from typing import List, Tuple
 from . import config
 from .config import SEATS
 from .hermes import ApiTransport
-from .seatsetup import hermes_bin, profile_dir, run_hermes
+from .seatsetup import (hermes_bin, profile_dir, run_hermes,
+                        scalar_in_top, tools_attached_sources)
 
 OK, WARN, FAIL = "OK ", "WARN", "FAIL"
 
@@ -41,17 +42,53 @@ def checks() -> List[Tuple[str, str, str]]:
         soul = pd / "SOUL.md"
         soul_ok = soul.exists() and "CADUCEUS SEAT" in soul.read_text()
         cfg = pd / "config.yaml"
-        cfg_ok = cfg.exists() and seat.model in cfg.read_text()
+        cfg_text = cfg.read_text() if cfg.exists() else ""
+        # model.default, never a whole-file substring: the cast model often
+        # appears in unrelated blocks while default: says something else.
+        cfg_ok = scalar_in_top(cfg_text, "model", "default") == seat.model
+        live_provider = scalar_in_top(cfg_text, "model", "provider")
+        provider_ok = live_provider == seat.provider
         bits = []
         bits.append("soul" if soul_ok else "SOUL-MISSING")
         bits.append(f"model={seat.model}" if cfg_ok else "MODEL-NOT-SET")
+        if cfg_ok and not provider_ok:
+            bits.append(f"PROVIDER={live_provider or 'unset'} (want "
+                        f"{seat.provider}) - run `cad init`")
         if seat.provider == "openrouter":
             envp = pd / ".env"
             key_ok = envp.exists() and "OPENROUTER_API_KEY" in envp.read_text()
             bits.append("key" if key_ok else "NO-OPENROUTER-KEY")
-            status = OK if (soul_ok and cfg_ok and key_ok) else WARN
+            healthy = soul_ok and cfg_ok and provider_ok and key_ok
         else:
-            status = OK if (soul_ok and cfg_ok) else WARN
+            healthy = soul_ok and cfg_ok and provider_ok
+        # A tools-incapable seat only works while all three tool-definition
+        # sources stay off. Nothing else notices when one comes back: the seat
+        # keeps its soul, its model and its key, and 404s on every single call
+        # ("No endpoints found that support tool use"). Same silent-failure
+        # class as the 0.3.1 inherited-fallback incident, so it gets checked
+        # every run rather than trusted because `cad init` once wrote it.
+        live_tools: List[str] = []
+        stale_strip = False
+        if not seat.tools_capable:
+            live_tools = tools_attached_sources(cfg.read_text() if cfg.exists() else "")
+            bits.append(f"TOOLS-ATTACHED[{'; '.join(live_tools)}]"
+                        if live_tools else "tools-stripped")
+        elif cfg.exists() and not tools_attached_sources(cfg.read_text()):
+            # the inverse regression: seat recast onto a tool-capable model
+            # but the full no-tools lockdown is still in its profile. The
+            # seat runs - just blind. (Found live on sparring 2026-08-26.)
+            stale_strip = True
+            bits.append(f"TOOLS-STRIPPED-STALE - {seat.model} takes tools but "
+                        "the no-tools lockdown is still applied; run `cad "
+                        "init` to restore")
+        if live_tools:
+            bits.append(f"- {seat.model} has no tool-capable endpoint; "
+                        "run `cad init` to re-strip")
+            status = FAIL
+        elif stale_strip:
+            status = WARN
+        else:
+            status = OK if healthy else WARN
         out.append((status, f"seat:{name}", " ".join(bits)))
 
     # gateways / api

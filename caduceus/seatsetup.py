@@ -283,6 +283,116 @@ def apply_no_tools(text: str) -> str:
     return out
 
 
+def scalar_in_top(text: str, top_key: str, scalar_key: str) -> Optional[str]:
+    """Read `top_key: / scalar_key:` - one level, unlike scalar_in_child.
+    Exists because a whole-file substring test is not a config check: the
+    cast model can appear in an unrelated block (auxiliary.vision.model, a
+    provider registry) while `model.default` says something else entirely.
+    2026-08-26: that false [OK] hid forge sitting on a 401ing provider."""
+    lines = text.splitlines()
+    bounds = _top_bounds(lines, top_key)
+    if not bounds:
+        return None
+    header, end = bounds
+    indent = _body_indent(lines, header + 1, end)
+    pat = re.compile(rf"^{indent}{re.escape(scalar_key)}\s*:\s*(.*)$")
+    for i in range(header + 1, end):
+        m = pat.match(lines[i])
+        if m and _indent_of(lines[i]) == indent:
+            return m.group(1).strip().strip('"').strip("'")
+    return None
+
+
+def scalar_in_child(text: str, top_key: str, child_key: str,
+                    scalar_key: str) -> Optional[str]:
+    """Read `top_key: / child_key: / scalar_key:`. None when any level is
+    absent. Quotes are stripped - hermes writes `enabled: "off"` here but
+    `enabled: false` under mcp_servers, and both must read the same way."""
+    lines = text.splitlines()
+    bounds = _top_bounds(lines, top_key)
+    if not bounds:
+        return None
+    header, end = bounds
+    indent = _body_indent(lines, header + 1, end)
+    cb = _child_bounds(lines, header + 1, end, child_key, indent)
+    if not cb:
+        return None
+    pat = re.compile(rf"^{indent * 2}{re.escape(scalar_key)}\s*:\s*(.*)$")
+    for i in range(cb[0] + 1, cb[1]):
+        m = pat.match(lines[i])
+        if m and _indent_of(lines[i]) == indent * 2:
+            return m.group(1).strip().strip('"').strip("'")
+    return None
+
+
+def tools_attached_sources(text: str) -> List[str]:
+    """Which tool-definition sources are STILL live in a seat config - the
+    inverse of apply_no_tools(). Empty list means fully stripped.
+
+    Read this as the audit half of the 404 fix: apply_no_tools() writes the
+    three blocks, this proves they are all still there. Any single survivor
+    puts tool definitions back on the wire, so each source is reported
+    separately and by name - the OpenRouter 404 only ever names one at a time.
+    """
+    live: List[str] = []
+
+    disabled = set(list_items(text, "agent", "disabled_toolsets"))
+    if not disabled:
+        live.append("agent.disabled_toolsets absent")
+    else:
+        missing = [t for t in no_tools_toolsets(text) if t not in disabled]
+        if missing:
+            shown = ",".join(missing[:3])
+            if len(missing) > 3:
+                shown += f",+{len(missing) - 3} more"
+            live.append(f"agent.disabled_toolsets missing {shown}")
+
+    if (scalar_in_child(text, "tools", "tool_search", "enabled") or "").lower() != "off":
+        live.append("tools.tool_search on")
+
+    hot = [s for s in child_keys(text, "mcp_servers")
+           if (scalar_in_child(text, "mcp_servers", s, "enabled")
+               or "true").lower() != "false"]
+    if hot:
+        live.append("mcp_servers enabled: " + ",".join(hot))
+
+    return live
+
+
+def drop_child_block(text: str, top_key: str, child_key: str) -> str:
+    """Delete one child block (header + body) under a top-level key. No-op
+    when either level is absent. Sibling keys are untouched."""
+    lines = text.splitlines()
+    bounds = _top_bounds(lines, top_key)
+    if not bounds:
+        return text
+    header, end = bounds
+    indent = _body_indent(lines, header + 1, end)
+    cb = _child_bounds(lines, header + 1, end, child_key, indent)
+    if not cb:
+        return text
+    return "\n".join(lines[:cb[0]] + lines[cb[1]:]) + "\n"
+
+
+def restore_tools(text: str) -> str:
+    """Exact inverse of apply_no_tools(): put every tool-definition source
+    back. Only ever called when the profile carries the FULL lockdown
+    signature (tools_attached_sources() == []) on a tools-capable seat -
+    i.e. when the strip is provably ours, left behind by a recast off a
+    tools-incapable model. Partial, operator-authored restrictions never
+    match the signature and are never touched.
+
+    2026-08-26: sparring sat blind for days after its recast to
+    google/gemini-3.7-flash because this function did not exist - the 0.3.2
+    CHANGELOG promised the lift, the code only ever applied the strip.
+    """
+    out = drop_child_block(text, "agent", "disabled_toolsets")
+    out = set_scalar_in_child(out, "tools", "tool_search", "enabled", '"on"')
+    for server in child_keys(out, "mcp_servers"):
+        out = set_scalar_in_child(out, "mcp_servers", server, "enabled", "true")
+    return out
+
+
 def api_server_block(seat: Seat, key: str) -> str:
     return (
         "platforms:\n"
@@ -382,10 +492,16 @@ def patch_profile_config(seat: Seat, api_key: str, log: List[str],
     new_text = replace_top_block(new_text, "fallback_providers", fallback_block())
     if enable_api and not has_top_block(new_text, "platforms"):
         new_text += "\n" + api_server_block(seat, api_key)
+    lifted = False
     if not seat.tools_capable:
-        # never the inverse: a tools-CAPABLE seat is left exactly as found, so
-        # an operator's deliberate toolset restrictions survive `cad init`
         new_text = apply_no_tools(new_text)
+    elif not tools_attached_sources(new_text):
+        # the FULL lockdown signature on a tools-capable seat is OUR strip,
+        # left behind by a recast off a tools-incapable model - lift it.
+        # Anything short of the full signature is an operator's own toolset
+        # restriction and survives `cad init` untouched.
+        new_text = restore_tools(new_text)
+        lifted = True
     if new_text != text:
         backup(cfg)
         cfg.write_text(new_text)
@@ -394,6 +510,10 @@ def patch_profile_config(seat: Seat, api_key: str, log: List[str],
         if not seat.tools_capable:
             log.append(f"[+] tools stripped for '{seat.name}' - {seat.model} has "
                        "no tool-capable endpoint (toolsets, tool_search, mcp)")
+        if lifted:
+            log.append(f"[+] tools restored for '{seat.name}' - {seat.model} "
+                       "takes tools; stale no-tools lockdown lifted "
+                       "(toolsets, tool_search, mcp)")
     else:
         log.append(f"[=] config for '{seat.name}' already correct")
     # sanity: openrouter seats need the key in the profile env
@@ -514,8 +634,13 @@ def init(seat_names: Optional[List[str]] = None, force_soul: bool = False,
     api_key = config.ensure_api_key()
     names = seat_names or list(SEATS.keys())
     created = []
+    from .models import effective_seat  # late import: avoids cycle at load
     for name in names:
-        seat = SEATS[name]
+        # effective_seat, NOT SEATS[name]: `cad init` must never fight
+        # `cad models set`. (2026-08-26: it did - a routine re-run reverted
+        # every recast seat in the live profiles, putting forge back on a
+        # provider that 401s and re-applying sparring's no-tools lockdown.)
+        seat = effective_seat(name)
         if create_profile(seat, log):
             install_soul(seat, log, force=force_soul)
             install_user_md(seat, log)

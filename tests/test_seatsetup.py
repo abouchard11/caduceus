@@ -417,3 +417,142 @@ tools:
 
     assert cfg.read_text() == hand_fixed
     assert any("already correct" in line for line in log)
+
+
+# ------------------------------------------------------------- un-strip (0.3.3)
+# 2026-08-26: sparring had been recast OFF hermes-4-405b onto a tool-capable
+# model (google/gemini-3.7-flash) days earlier, yet its profile was still
+# fully stripped - 20 disabled toolsets, tool_search off, both MCP servers
+# dead. patch_profile_config() only ever ADDED the lockdown; nothing lifted
+# it, so the 0.3.2 CHANGELOG's "cad models set lifts the lockdown" claim was
+# false in the shipped code. The lockdown must come off exactly when the
+# profile carries OUR full signature and the seat is tools-capable - and
+# never touch an operator's own partial toolset restrictions.
+
+def _capable_seat_ss():
+    return next(s for s in SEATS.values() if s.tools_capable)
+
+
+UNSTRIP_BASE = """model:
+  default: {model}
+  provider: {provider}
+  max_tokens: 8192
+fallback_providers: []
+agent:
+  max_turns: 500
+  verbose: false
+mcp_servers:
+  graphiti:
+    command: docker
+    enabled: true
+  wisprflow:
+    command: npx
+    enabled: true
+"""
+
+
+def test_restore_tools_is_the_inverse_of_apply_no_tools():
+    seat = _capable_seat_ss()
+    base = UNSTRIP_BASE.format(model=seat.model, provider=seat.provider)
+    stripped = seatsetup.apply_no_tools(base)
+    restored = seatsetup.restore_tools(stripped)
+
+    assert seatsetup.list_items(restored, "agent", "disabled_toolsets") == []
+    assert "disabled_toolsets" not in restored
+    assert seatsetup.scalar_in_child(restored, "tools", "tool_search",
+                                     "enabled") == "on"
+    for server in ("graphiti", "wisprflow"):
+        assert seatsetup.scalar_in_child(restored, "mcp_servers", server,
+                                         "enabled") == "true"
+    # siblings survive both directions
+    assert "max_turns: 500" in restored
+    assert "command: docker" in restored
+
+
+def test_patch_profile_config_lifts_stale_lockdown_for_capable_seat():
+    seat = _capable_seat_ss()
+    pd = seatsetup.profile_dir(seat.name)
+    pd.mkdir(parents=True, exist_ok=True)
+    cfg = pd / "config.yaml"
+    cfg.write_text(seatsetup.apply_no_tools(
+        UNSTRIP_BASE.format(model=seat.model, provider=seat.provider)))
+
+    log = []
+    seatsetup.patch_profile_config(seat, "k" * 20, log, enable_api=False)
+
+    text = cfg.read_text()
+    assert seatsetup.tools_attached_sources(text)  # sources live again
+    assert "disabled_toolsets" not in text
+    assert seatsetup.scalar_in_child(text, "mcp_servers", "graphiti",
+                                     "enabled") == "true"
+    assert any("restored" in l for l in log)
+
+
+def test_patch_profile_config_leaves_partial_restrictions_alone():
+    """An operator's own toolset choices are NOT our lockdown signature -
+    a partial strip must survive `cad init` byte-for-byte in those blocks."""
+    seat = _capable_seat_ss()
+    pd = seatsetup.profile_dir(seat.name)
+    pd.mkdir(parents=True, exist_ok=True)
+    cfg = pd / "config.yaml"
+    custom = (UNSTRIP_BASE.format(model=seat.model, provider=seat.provider)
+              + "  disabled_toolsets:\n    - terminal\n")
+    # move the custom list under agent: properly
+    custom = seatsetup.set_child_block(
+        UNSTRIP_BASE.format(model=seat.model, provider=seat.provider),
+        "agent", "disabled_toolsets",
+        ["  disabled_toolsets:", "    - terminal"])
+    custom = seatsetup.set_scalar_in_child(
+        custom, "mcp_servers", "wisprflow", "enabled", "false")
+    cfg.write_text(custom)
+
+    log = []
+    seatsetup.patch_profile_config(seat, "k" * 20, log, enable_api=False)
+
+    text = cfg.read_text()
+    assert seatsetup.list_items(text, "agent", "disabled_toolsets") == ["terminal"]
+    assert seatsetup.scalar_in_child(text, "mcp_servers", "wisprflow",
+                                     "enabled") == "false"
+    assert not any("restored" in l for l in log)
+
+
+# --------------------------------------------------- init honors casting (0.3.3)
+# 2026-08-26 regression, caused live: `cad init` iterated SEATS (the SHIPPED
+# defaults) instead of effective_seat(), so a routine re-run silently reverted
+# every recast seat in the live Hermes profiles - forge back onto the
+# alibaba-coding-plan provider that 401s, finisher off a just-made recast, and
+# sparring back onto hermes-4-405b complete with a re-applied no-tools
+# lockdown. casting.json survived; only the profiles were clobbered. `cad
+# init` must never fight `cad models set`.
+
+def test_init_writes_the_cast_model_not_the_shipped_default(monkeypatch):
+    from caduceus import models
+    seat_name = "forge"
+    shipped = SEATS[seat_name]
+    # pre-create every profile dir so init() never shells out to hermes
+    for n in SEATS:
+        seatsetup.profile_dir(n).mkdir(parents=True, exist_ok=True)
+    models.save_casting({seat_name: {
+        "model": "anthropic/claude-sonnet-4.6", "provider": "openrouter",
+        "family": "anthropic",
+    }})
+
+    seatsetup.init(seat_names=[seat_name])
+
+    text = (seatsetup.profile_dir(seat_name) / "config.yaml").read_text()
+    assert seatsetup.scalar_in_top(text, "model", "default") == \
+        "anthropic/claude-sonnet-4.6"
+    assert seatsetup.scalar_in_top(text, "model", "provider") == "openrouter"
+    assert shipped.model != "anthropic/claude-sonnet-4.6"  # guard the fixture
+
+
+def test_init_leaves_uncast_seats_on_their_shipped_default(monkeypatch):
+    for n in SEATS:
+        seatsetup.profile_dir(n).mkdir(parents=True, exist_ok=True)
+    from caduceus import models
+    models.save_casting({})
+
+    seatsetup.init(seat_names=["recon"])
+
+    text = (seatsetup.profile_dir("recon") / "config.yaml").read_text()
+    assert seatsetup.scalar_in_top(text, "model", "default") == SEATS["recon"].model

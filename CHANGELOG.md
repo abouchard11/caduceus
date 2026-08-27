@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.3.3 — 2026-08-26
+Three silent-failure defects, all in the same family as the 0.3.1 inherited
+fallback and the 0.3.2 tools lockdown: the config on disk drifted from the
+config the engine believed it had, and nothing said so.
+- **`cad init` fought `cad models set`.** `init()` iterated `SEATS` (the
+  SHIPPED defaults) instead of `effective_seat()`, so a routine re-run
+  silently reverted every recast seat in the live Hermes profiles — forge
+  back onto the `alibaba-coding-plan` provider that 401s, finisher off a
+  just-made recast, sparring back onto `hermes-4-405b` with its no-tools
+  lockdown re-applied. `casting.json` survived; only the profiles were
+  clobbered. Caught live on 2026-08-26 by running it.
+- **The no-tools lockdown never lifted.** `apply_no_tools()` was applied when
+  a seat was tools-incapable and removed by nothing, so sparring sat fully
+  stripped (20 toolsets, tool_search off, both MCP servers dead) for days
+  after its recast onto `google/gemini-3.7-flash` — running blind on a model
+  that takes tools. The 0.3.2 note claiming `cad models set` lifts the
+  lockdown was false in the shipped code. New `restore_tools()` is the exact
+  inverse of `apply_no_tools()`, applied only when the profile carries the
+  FULL lockdown signature on a tools-capable seat; a partial, operator-authored
+  restriction never matches the signature and is never touched.
+- **`cad doctor`'s model row was a whole-file substring test.** `seat.model in
+  cfg.read_text()` matched an incidental mention in an unrelated block
+  (`auxiliary.vision.model`, a provider registry) while `model.default` said
+  something else, and `provider` was never checked at all — so forge reported
+  `[OK]` while pointed at a 401ing endpoint. Now reads `model.default` and
+  `model.provider` via the new `scalar_in_top()` reader, and names the fix.
+- `cad doctor` also audits the tools lockdown in both directions now: a
+  tools-incapable seat FAILs with `TOOLS-ATTACHED[...]` naming every live
+  source, and a tools-capable seat WARNs with `TOOLS-STRIPPED-STALE` when a
+  stale lockdown is still applied. Built on `tools_attached_sources()`, the
+  inverse of the writer, so writer and verifier cannot drift apart.
+- 14 new tests (113 total). Each regression shape is covered independently and
+  the suite was mutation-tested — a no-op verifier and a disabled check both
+  turn it red.
+Operational note: the family rule was restored the same day. finisher had been
+recast to `qwen/qwen3.8-27b` on 08-23 while forge was `qwen/qwen3.7-plus` —
+`heterogeneity_warnings()` flagged "FINISHER shares FORGE's family", the exact
+conformity failure the seat design exists to prevent. finisher is now
+`anthropic/claude-sonnet-4.6`, the 08-19 council's own provisional pick. The
+planted-defect eval that council asked for is still owed.
+
 ## 0.3.2 — 2026-08-19
 Codifies the third 2026-08-19 incident, which until now lived only as a hand
 edit in `~/.hermes/profiles/sparring/config.yaml`: deleting that profile and
