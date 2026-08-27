@@ -259,6 +259,31 @@ def cmd_followup_drop(args):
     _followup_close(args, "dropped")
 
 
+def cmd_exec_queue(args):
+    from . import followup
+    f = followup.Followups()
+    q = [c for c in f.pending()
+         if c.owner == "agent" and not followup._is_diagnostic(c.run_id)]
+    f.close_conn()
+    if not q:
+        _print("staff queue empty")
+        return
+    for c in q:
+        _print(f"  [{c.id}]  {int(c.age_days):>3}d  {c.action[:90]}")
+
+
+def cmd_exec_run(args):
+    from . import executor
+    results = executor.run_queue(live=args.live, max_actions=args.max)
+    if not results:
+        _print("staff queue empty")
+        return
+    for r in results:
+        _print(f"  [{r.cid}] {r.status}: {r.detail[:120]}")
+    if not args.live:
+        _print("dry-run - pass --live to execute")
+
+
 def cmd_followup_agenda(args):
     from . import followup
     _print(followup.agenda(followup.status()))
@@ -628,6 +653,15 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("command", nargs=argparse.REMAINDER)
     s.add_argument("--dry-run", action="store_true")
     s.set_defaults(fn=cmd_council_review_command)
+
+    ex = sub.add_parser("exec", help="autonomous staff-work executor")
+    esub = ex.add_subparsers(dest="ecmd", required=True)
+    s = esub.add_parser("queue", help="agent-owned work waiting")
+    s.set_defaults(fn=cmd_exec_queue)
+    s = esub.add_parser("run", help="execute staff queue (dry-run by default)")
+    s.add_argument("--live", action="store_true")
+    s.add_argument("--max", type=int, default=2)
+    s.set_defaults(fn=cmd_exec_run)
 
     fu = sub.add_parser("followup", help="open loops: unexecuted advice + ungraded decisions")
     fsub = fu.add_subparsers(dest="fcmd", required=True)

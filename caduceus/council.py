@@ -276,6 +276,18 @@ class Council:
             quick: bool = False, escalate: bool = True,
             domain: Optional[str] = None, run_id: Optional[str] = None) -> CouncilResult:
         t0 = time.time()
+        # Pre-flight, fail-closed (RECON precondition, run 20260823-224424):
+        # the guard used to fire only after money was gone. A council must not
+        # start into a blocked household budget.
+        from . import budgets as _budgets
+        try:
+            _status, _spend, _ceil = _budgets.check_daily_budget()
+        except Exception as e:
+            raise SystemExit(f"budget pre-flight failed closed: {e}")
+        if _status == "block":
+            raise SystemExit(
+                f"daily budget blocked before start: ${_spend:.2f} >= ${_ceil:.2f} "
+                "(cad budget status)")
         run_id = run_id or (time.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6])
         domain = domain or config.classify_domain(question)
         mode = "quick" if quick else "full"

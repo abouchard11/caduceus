@@ -31,6 +31,9 @@ CEILINGS = {
     "full_council": {"soft": 1.50, "hard": 3.00},   # 4 seats
     "single_seat": {"soft": 0.75, "hard": 1.50},    # autonomous seat run
     "daily": {"soft": 8.00, "hard": 10.00},          # all profiles combined
+    # Autonomous staff-work execution (operator-set 2026-08-27):
+    # $15/day across all executor actions, $2 hard cap per single action.
+    "execution": {"per_action": 2.00, "daily": 15.00},
 }
 
 # ---------------------------------------------------------------- paths
@@ -290,6 +293,64 @@ def check_daily_budget() -> Tuple[str, float, float]:
         return "warn", spend, ceiling
     else:
         return "ok", spend, ceiling
+
+
+# ------------------------------------------------------- execution pre-flight
+#
+# RECON's verified precondition (run 20260823-224424, settled as its win):
+# the council-era guard fired post-hoc - the 818% artifact was $15.33 of real
+# seat spend discovered only after the fact. Autonomous execution therefore
+# gates BEFORE every spend, and fails CLOSED: any error in the check is a
+# block, never a pass.
+
+def _execution_log_path() -> Path:
+    return budgets_dir() / "execution_spend.jsonl"
+
+
+def record_execution_spend(commit_id: str, cost_usd: float, note: str = "") -> None:
+    entry = {"ts": time.time(), "commit_id": commit_id,
+             "cost_usd": round(float(cost_usd), 6), "note": note[:200]}
+    with open(_execution_log_path(), "a") as f:
+        f.write(json.dumps(entry) + "\n")
+
+
+def execution_spend_today() -> float:
+    path = _execution_log_path()
+    if not path.exists():
+        return 0.0
+    cutoff = time.time() - 86400
+    total = 0.0
+    for line in path.read_text().splitlines():
+        try:
+            d = json.loads(line)
+            if d.get("ts", 0) >= cutoff:
+                total += float(d.get("cost_usd", 0))
+        except Exception:
+            continue
+    return total
+
+
+def preflight_execution(est_action_cost: float) -> Tuple[bool, str]:
+    """Fail-closed gate called BEFORE an executor action spends anything.
+
+    Checks, in order: per-action cap, executor daily cap, and the household
+    daily cap (seat profiles share one wallet - the 818% event proved normal
+    seat usage alone can blow it). Any exception is a block."""
+    try:
+        cap = CEILINGS["execution"]["per_action"]
+        if est_action_cost > cap:
+            return False, f"per-action cap: est ${est_action_cost:.2f} > ${cap:.2f}"
+        day_cap = CEILINGS["execution"]["daily"]
+        spent = execution_spend_today()
+        if spent + est_action_cost > day_cap:
+            return False, (f"execution daily cap: ${spent:.2f} spent "
+                           f"+ ${est_action_cost:.2f} > ${day_cap:.2f}")
+        status, dspend, dceil = check_daily_budget()
+        if status == "block":
+            return False, f"household daily budget blocked: ${dspend:.2f} >= ${dceil:.2f}"
+        return True, f"ok (${spent:.2f}/{day_cap:.0f} today)"
+    except Exception as e:  # fail closed
+        return False, f"preflight error (fail-closed): {e}"
 
 
 # ---------------------------------------------------------------- ceiling overrides
