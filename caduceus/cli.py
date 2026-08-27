@@ -259,9 +259,32 @@ def cmd_followup_drop(args):
     _followup_close(args, "dropped")
 
 
+def cmd_followup_agenda(args):
+    from . import followup
+    _print(followup.agenda(followup.status()))
+
+
+def cmd_followup_triage(args):
+    from . import followup
+    f = followup.Followups()
+    n = f.retriage()
+    f.close_conn()
+    _print(f"reclassified {n} item(s)")
+
+
+def cmd_followup_split(args):
+    from . import followup
+    f = followup.Followups()
+    new = f.split(args.id, args.part)
+    f.close_conn()
+    if not new:
+        _print(f"[{args.id}] not found"); raise SystemExit(1)
+    _print(f"split into {len(new)}: {', '.join(new)}")
+
+
 def cmd_followup_nudge(args):
     from . import followup, telegram
-    text = followup.render(followup.status())
+    text = followup.agenda(followup.status())
     if not text:
         _print("nothing open - no nudge sent")
         return
@@ -620,7 +643,14 @@ def build_parser() -> argparse.ArgumentParser:
     s = fsub.add_parser("drop", help="abandon a tracked action (with reason)")
     s.add_argument("id"); s.add_argument("--note")
     s.set_defaults(fn=cmd_followup_drop)
-    s = fsub.add_parser("nudge", help="post open loops to telegram")
+    s = fsub.add_parser("agenda", help="what needs YOU (staff work collapsed)")
+    s.set_defaults(fn=cmd_followup_agenda)
+    s = fsub.add_parser("triage", help="re-classify pending items by ownership")
+    s.set_defaults(fn=cmd_followup_triage)
+    s = fsub.add_parser("split", help="break a compound item into atomic actions")
+    s.add_argument("id"); s.add_argument("part", nargs="+")
+    s.set_defaults(fn=cmd_followup_split)
+    s = fsub.add_parser("nudge", help="push the agenda to telegram")
     s.add_argument("--seat", default="envoy", help="seat profile to post as")
     s.add_argument("--dry-run", action="store_true")
     s.set_defaults(fn=cmd_followup_nudge)
