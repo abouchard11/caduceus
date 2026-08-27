@@ -278,3 +278,70 @@ def test_seat_model_row_flags_a_wrong_provider():
     assert "PROVIDER" in detail and wrong in detail
     assert seat.provider in detail  # names what it wants, per the FAIL-names-fix rule
     assert status == doctor.WARN
+
+
+# ----------------------------------------------------------- cron health (0.3.3)
+# 2026-08-26: the morning brief had silently failed for SEVEN consecutive
+# days (hermes drift_skip: global model config changed after job creation)
+# while doctor reported cron [OK] because it only counted registered jobs.
+# The operator asked "how come I didn't have alerts about them?" - because
+# the alerting layer was dead and the health check that should have said so
+# was a job-count. Same silent-failure class as everything else in 0.3.3.
+
+import json as _json
+
+
+def _write_cron_jobs(jobs):
+    p = config.hermes_home() / "cron"
+    p.mkdir(parents=True, exist_ok=True)
+    (p / "jobs.json").write_text(_json.dumps(jobs))
+
+
+def test_cron_fails_loud_when_a_caduceus_job_is_dead():
+    _make_all_seat_profiles()
+    _write_cron_jobs([
+        {"name": "caduceus-morning-brief", "enabled": True,
+         "last_status": "error", "failure_streak": 7,
+         "last_error": "RuntimeError: [drift_skip:silent] Skipped to prevent "
+                       "unintended spend: global inference config drifted"},
+        {"name": "caduceus-weekly-ledger", "enabled": True,
+         "last_status": "ok", "failure_streak": 0},
+    ])
+
+    status, detail = _row(doctor.checks(), "cron")
+
+    assert status == doctor.FAIL
+    assert "caduceus-morning-brief" in detail
+    assert "7" in detail
+    assert "drift_skip" in detail
+    assert "cad init --cron" in detail  # the fix, named
+
+
+def test_cron_warns_on_a_single_failure():
+    _make_all_seat_profiles()
+    _write_cron_jobs([
+        {"name": "caduceus-morning-brief", "enabled": True,
+         "last_status": "error", "failure_streak": 1,
+         "last_error": "timeout"},
+        {"name": "caduceus-weekly-ledger", "enabled": True,
+         "last_status": "ok", "failure_streak": 0},
+    ])
+
+    status, detail = _row(doctor.checks(), "cron")
+
+    assert status == doctor.WARN
+    assert "caduceus-morning-brief" in detail
+
+
+def test_cron_ok_when_jobs_are_healthy():
+    _make_all_seat_profiles()
+    _write_cron_jobs([
+        {"name": "caduceus-morning-brief", "enabled": True,
+         "last_status": "ok", "failure_streak": 0},
+        {"name": "caduceus-weekly-ledger", "enabled": True,
+         "last_status": "ok", "failure_streak": 0},
+    ])
+
+    status, detail = _row(doctor.checks(), "cron")
+
+    assert status == doctor.OK

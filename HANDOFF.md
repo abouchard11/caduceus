@@ -21,6 +21,19 @@ Live engine state (`cad doctor`, 2026-08-26): 0 failures, 4 warnings. Hermes v0.
 
 OPEN ITEMS (1 needs Alex's call; 2 and 3 resolved 2026-08-26)
 
+0. **WHY ALEX NEVER SAW ANY OF THIS — root-caused and fixed 2026-08-26.** The morning-brief
+cron had failed SILENTLY for 7 straight days: hermes `drift_skip` refused to run it after the
+global model config changed (created under qwen3.7-plus/alibaba, global now gemini-3.7-flash),
+and even a successful run delivered only to its own cron session log — the Telegram bridge
+(the designed operator console) was never configured. `cad doctor` said cron [OK] the whole
+time because it counted registered jobs, not their health. Fixed three ways: jobs re-registered
+(fresh snapshot, drift cleared), brief prompts now write to ~/CLAUDE-PENDING-ACTIONS.md (which
+every Claude session surfaces at start), and doctor now FAILs on failure_streak >= 3 naming the
+fix. Settlement backlog delivered as ~/.caduceus/SETTLEMENT-2026-08-26.md — 5 pre-filled
+verdicts awaiting Alex. The hermes-native "Morning briefing" job (google-workspace) is ALSO
+dead 7 days (missing google_token.json, delivers to unconfigured telegram) — operator-side fix.
+
+
 1. **The Decision #7 kill-criterion clock expired TODAY.** It started 2026-08-19: beat bare Hermes on 3 real tasks within a week, or park the engine. Four councils have run since (08-19, 08-20, 08-22, 08-23) — the work happened. But the ledger holds **1 settled outcome** against **11 unsettled runs**, and that one outcome is a *loss* (sparring, implementation, 0/0/1, score 0.346: "optimized a bad premise; nobody attacked the $100 target against $224k deal history"). On the ledger's own evidence the bar is not met. The honest reading is that settling was skipped, not that the engine failed — but that distinction is Alex's to make, and it cannot be made retroactively forever. Settle what is settleable or call the criterion.
 
 2. **RESOLVED 2026-08-26 — casting drift had broken the family rule.** finisher had been recast to

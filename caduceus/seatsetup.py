@@ -591,7 +591,14 @@ CRON_JOBS = [
                    "run `cad dashboard`, read ~/.caduceus/runs for unsettled "
                    "council runs, check `cad ledger runs`, then produce a "
                    "5-line brief: unsettled decisions, guard blocks in the last "
-                   "24h, and the single most important thing to push today."),
+                   "24h, and the single most important thing to push today. "
+                   "DELIVERY IS THE POINT: replace the '## Caduceus morning "
+                   "brief' section of ~/CLAUDE-PENDING-ACTIONS.md with the "
+                   "brief (create file or section if missing, keep the rest "
+                   "of the file intact, date the heading). That file is "
+                   "surfaced to the operator at every session start; a brief "
+                   "that only lands in this cron session log reaches no one - "
+                   "that failure ran silently for a week once (2026-08-26)."),
     },
     {
         "name": "caduceus-weekly-ledger",
@@ -599,7 +606,12 @@ CRON_JOBS = [
         "prompt": ("Run `cad ledger show` and summarize seat believability "
                    "movement over the past week in 5 lines. Flag any seat "
                    "whose track record says its model should be up- or "
-                   "down-graded, with the cost math."),
+                   "down-graded, with the cost math. DELIVERY IS THE POINT: "
+                   "replace the '## Caduceus weekly ledger' section of "
+                   "~/CLAUDE-PENDING-ACTIONS.md with the summary (create "
+                   "file/section if missing, keep the rest intact, date the "
+                   "heading) - output that stays in this session log reaches "
+                   "no one."),
     },
 ]
 

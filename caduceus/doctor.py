@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import sqlite3
 from pathlib import Path
@@ -156,10 +157,35 @@ def checks() -> List[Tuple[str, str, str]]:
         try:
             data = json.loads(cron_jobs.read_text() or "[]")
             jobs = data if isinstance(data, list) else data.get("jobs", [])
-            names = [j.get("name", "?") for j in jobs if isinstance(j, dict)]
-            cadjobs = [n for n in names if n and "caduceus" in n]
-            out.append((OK if cadjobs else WARN, "cron",
-                        f"{len(cadjobs)} caduceus jobs of {len(names)} total"))
+            cadjobs = [j for j in jobs if isinstance(j, dict)
+                       and "caduceus" in str(j.get("name", ""))]
+            # health, not existence: on 2026-08-26 the morning brief had
+            # failed silently for 7 straight days (hermes drift_skip after a
+            # global model change) while this row said OK on a job-count.
+            sick = []
+            for j in cadjobs:
+                streak = int(j.get("failure_streak") or 0)
+                if j.get("last_status") == "error" or streak > 0:
+                    err = " ".join(str(j.get("last_error") or "").split())
+                    m = re.search(r"\[([a-z_]+(?::[a-z_]+)?)\]", err)
+                    sick.append((j.get("name", "?"), streak,
+                                 m.group(1) if m else err[:40]))
+            if not cadjobs:
+                out.append((WARN, "cron",
+                            f"no caduceus jobs of {len(jobs)} total - morning "
+                            "brief not scheduled (cad init --cron)"))
+            elif sick:
+                worst = max(s[1] for s in sick)
+                det = "; ".join(f"{n} dead ({streak} straight failures: {why})"
+                                for n, streak, why in sick)
+                out.append((FAIL if worst >= 3 else WARN, "cron",
+                            f"{det} - the operator brief is NOT reaching the "
+                            "operator; re-register: `hermes cron remove "
+                            "<name>` then `cad init --cron`"))
+            else:
+                out.append((OK, "cron",
+                            f"{len(cadjobs)} caduceus jobs healthy of "
+                            f"{len(jobs)} total"))
         except Exception:
             out.append((WARN, "cron", "jobs.json unreadable"))
     else:
