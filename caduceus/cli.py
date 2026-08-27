@@ -212,6 +212,68 @@ def cmd_ledger_settle(args):
     led.close()
 
 
+def cmd_followup_list(args):
+    from . import followup
+    st = followup.status()
+    acts, runs = st["unexecuted"], st["unsettled"]
+    if not acts and not runs:
+        _print("no open loops - every recommendation acted on, every decision graded")
+        return
+    if acts:
+        _print(f"NOT DONE YET ({len(acts)}):")
+        for c in acts:
+            _print(f"  [{c.id}]  {int(c.age_days):>3}d  {c.seat or '-':<9} {c.action[:80]}")
+        _print("  cad followup done <id> | cad followup drop <id>")
+    if runs:
+        if acts: _print("")
+        _print(f"UNGRADED DECISIONS ({len(runs)}):")
+        for r in runs:
+            _print(f"  {r['run_id']}  {r['question'][:70]}")
+        _print("  cad ledger settle <run_id> --winner <seat> --loser <seat>")
+
+
+def cmd_followup_open(args):
+    from . import followup
+    f = followup.Followups()
+    cid = f.open(args.run_id, args.action, seat=args.seat or "")
+    f.close_conn()
+    _print(f"tracking [{cid}]: {args.action[:70]}")
+
+
+def _followup_close(args, state):
+    from . import followup
+    f = followup.Followups()
+    ok = f.close(args.id, state, note=args.note or "")
+    f.close_conn()
+    _print(f"[{args.id}] -> {state}" if ok else
+           f"[{args.id}] not found or already closed")
+    if not ok:
+        raise SystemExit(1)
+
+
+def cmd_followup_done(args):
+    _followup_close(args, "done")
+
+
+def cmd_followup_drop(args):
+    _followup_close(args, "dropped")
+
+
+def cmd_followup_nudge(args):
+    from . import followup, telegram
+    text = followup.render(followup.status())
+    if not text:
+        _print("nothing open - no nudge sent")
+        return
+    if args.dry_run:
+        _print(text)
+        return
+    ok, err = telegram.post(text, seat=args.seat)
+    _print("nudge sent" if ok else f"FAILED: {err}")
+    if not ok:
+        raise SystemExit(1)
+
+
 def cmd_approve_grant(args):
     cmd = " ".join(args.command).strip()
     if not cmd:
@@ -543,6 +605,25 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("command", nargs=argparse.REMAINDER)
     s.add_argument("--dry-run", action="store_true")
     s.set_defaults(fn=cmd_council_review_command)
+
+    fu = sub.add_parser("followup", help="open loops: unexecuted advice + ungraded decisions")
+    fsub = fu.add_subparsers(dest="fcmd", required=True)
+    s = fsub.add_parser("list", help="what is still open")
+    s.set_defaults(fn=cmd_followup_list)
+    s = fsub.add_parser("open", help="track an action a council recommended")
+    s.add_argument("run_id"); s.add_argument("action")
+    s.add_argument("--seat", help="seat that recommended it")
+    s.set_defaults(fn=cmd_followup_open)
+    s = fsub.add_parser("done", help="mark a tracked action as executed")
+    s.add_argument("id"); s.add_argument("--note")
+    s.set_defaults(fn=cmd_followup_done)
+    s = fsub.add_parser("drop", help="abandon a tracked action (with reason)")
+    s.add_argument("id"); s.add_argument("--note")
+    s.set_defaults(fn=cmd_followup_drop)
+    s = fsub.add_parser("nudge", help="post open loops to telegram")
+    s.add_argument("--seat", default="envoy", help="seat profile to post as")
+    s.add_argument("--dry-run", action="store_true")
+    s.set_defaults(fn=cmd_followup_nudge)
 
     lg = sub.add_parser("ledger", help="believability ledger")
     lsub = lg.add_subparsers(dest="lcmd", required=True)
