@@ -52,8 +52,14 @@ class Transport:
 class OneshotTransport(Transport):
     name = "oneshot"
 
-    def __init__(self, hermes_bin: Optional[str] = None):
+    def __init__(self, hermes_bin: Optional[str] = None,
+                 extra_args: Optional[List[str]] = None):
         self.bin = hermes_bin or shutil.which("hermes") or "hermes"
+        # Per-invocation flags. The executor passes ["-t", "clarify"]: -t is
+        # an ENABLE-list, so naming one harmless toolset strips the other 21
+        # tools AND every MCP server for that call (verified 2026-08-27 -
+        # "" is ignored and --safe-mode still ships write_file).
+        self.extra_args = list(extra_args or [])
 
     def available(self, seat: Seat) -> bool:
         return shutil.which(self.bin) is not None or Path(self.bin).exists()
@@ -67,6 +73,7 @@ class OneshotTransport(Transport):
             self.bin, "-p", seat.name,
             "-z", prompt,
             "--usage-file", usage_file.name,
+            *self.extra_args,
         ]
         try:
             proc = subprocess.run(

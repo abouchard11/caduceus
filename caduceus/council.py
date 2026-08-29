@@ -276,6 +276,18 @@ class Council:
             quick: bool = False, escalate: bool = True,
             domain: Optional[str] = None, run_id: Optional[str] = None) -> CouncilResult:
         t0 = time.time()
+        # Pre-flight, fail-closed (RECON precondition, run 20260823-224424):
+        # the guard used to fire only after money was gone. A council must not
+        # start into a blocked household budget.
+        from . import budgets as _budgets
+        try:
+            _status, _spend, _ceil = _budgets.check_daily_budget()
+        except Exception as e:
+            raise SystemExit(f"budget pre-flight failed closed: {e}")
+        if _status == "block":
+            raise SystemExit(
+                f"daily budget blocked before start: ${_spend:.2f} >= ${_ceil:.2f} "
+                "(cad budget status)")
         run_id = run_id or (time.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6])
         domain = domain or config.classify_domain(question)
         mode = "quick" if quick else "full"
@@ -430,8 +442,32 @@ class Council:
         result.memo_path = memo.write_memo(result, self.ledger)
         self.ledger.register_run(run_id, domain, question,
                                  [s.name for s in seats], result.memo_path)
+        self._track_lead_action(result)
         self._persist(result)
         return result
+
+    def _track_lead_action(self, r: CouncilResult) -> None:
+        """Open an execution loop for the lead recommendation.
+
+        A memo nobody acts on is indistinguishable from no council at all
+        (ledger run 20260819-123157: advice never executed, operator had no
+        recollection of it seven days later). Capturing the action at run time
+        is the only step that does not depend on the operator remembering.
+        Never fatal - a tracking failure must not sink a finished council."""
+        try:
+            from . import followup
+            winner = getattr(r, "winner", None)
+            if not winner:
+                return
+            action = (getattr(winner, "recommendation", "") or
+                      getattr(winner, "position", "") or "").strip()
+            if not action:
+                return
+            f = followup.Followups()
+            f.open(r.run_id, action, seat=getattr(winner, "seat", ""))
+            f.close_conn()
+        except Exception:
+            pass
 
     def _persist(self, r: CouncilResult) -> None:
         path = config.runs_dir() / f"{r.run_id}.json"
