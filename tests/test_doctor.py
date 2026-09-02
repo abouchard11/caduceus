@@ -397,3 +397,65 @@ def test_brief_delivery_ok_when_fresh(monkeypatch, tmp_path):
 
     assert status == doctor.OK
     assert today in detail
+
+
+# ------------------------------------------------------- launchd health (0.3.6)
+# 2026-09-02: dev.midnightdev.caduceus.exec and .nudge (launchd, Mon/Thu) had
+# both fired and died with "cad: error: invalid choice: 'exec'" - the editable
+# install was on a checkout that predated the subcommand. The failure sat in
+# /tmp/caduceus-*.err and nobody looked. doctor watched hermes cron (0.3.3)
+# but not launchd, so the seat-work executor was dead and doctor said nothing.
+
+import plistlib
+
+
+def _launchd_dir(monkeypatch, tmp_path):
+    d = tmp_path / "LaunchAgents"
+    d.mkdir()
+    monkeypatch.setenv("CADUCEUS_LAUNCHD_DIR", str(d))
+    return d
+
+
+def _plist(d, label, err_path):
+    p = d / f"{label}.plist"
+    with open(p, "wb") as f:
+        plistlib.dump({"Label": label,
+                       "ProgramArguments": ["/bin/zsh", "-lc", "cad exec run --live"],
+                       "StandardErrorPath": str(err_path),
+                       "StartCalendarInterval": [{"Hour": 8, "Minute": 45, "Weekday": 1}]}, f)
+    return p
+
+
+def test_launchd_warns_when_a_caduceus_job_last_died(monkeypatch, tmp_path):
+    _make_all_seat_profiles()
+    d = _launchd_dir(monkeypatch, tmp_path)
+    err = tmp_path / "caduceus-exec.err"
+    err.write_text("usage: cad [-h]\ncad: error: argument cmd: invalid choice: 'exec'\n")
+    _plist(d, "dev.midnightdev.caduceus.exec", err)
+
+    status, detail = _row(doctor.checks(), "launchd")
+
+    assert status == doctor.WARN
+    assert "caduceus.exec" in detail
+    assert "invalid choice: 'exec'" in detail
+    assert "main" in detail            # the fix: the editable install must be on main
+
+
+def test_launchd_ok_when_err_logs_are_clean(monkeypatch, tmp_path):
+    _make_all_seat_profiles()
+    d = _launchd_dir(monkeypatch, tmp_path)
+    err = tmp_path / "caduceus-exec.err"
+    err.write_text("")
+    _plist(d, "dev.midnightdev.caduceus.exec", err)
+
+    status, detail = _row(doctor.checks(), "launchd")
+
+    assert status == doctor.OK
+    assert "1 caduceus job" in detail
+
+
+def test_launchd_row_absent_when_no_jobs_installed(monkeypatch, tmp_path):
+    _make_all_seat_profiles()
+    _launchd_dir(monkeypatch, tmp_path)
+
+    assert _row(doctor.checks(), "launchd") is None

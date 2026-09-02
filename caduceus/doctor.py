@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+import plistlib
 import re
 import shutil
 import sqlite3
@@ -231,6 +233,40 @@ def checks() -> List[Tuple[str, str, str]]:
     else:
         out.append((WARN, "telegram",
                     "bridge not configured (optional) - cad telegram runbook"))
+
+    # launchd - the seat-work executor (Mon/Thu 08:45, --live) and the nudge
+    # run from ~/Library/LaunchAgents, not hermes cron. 2026-09-02: both had
+    # fired and died with "cad: error: invalid choice: 'exec'" - the editable
+    # install was on a checkout that predated the subcommand - and the failure
+    # sat in /tmp/caduceus-*.err where nobody looked. Same silent class as the
+    # cron row above; watch the artifact (the err log), not the schedule.
+    ldir = Path(os.environ.get("CADUCEUS_LAUNCHD_DIR",
+                               str(Path.home() / "Library" / "LaunchAgents")))
+    plists = sorted(ldir.glob("*caduceus*.plist")) if ldir.exists() else []
+    if plists:
+        sick = []
+        for pl in plists:
+            try:
+                with open(pl, "rb") as f:
+                    data = plistlib.load(f)
+            except Exception:
+                continue
+            label = str(data.get("Label", pl.stem))
+            errp = data.get("StandardErrorPath")
+            if errp and Path(str(errp)).exists():
+                lines = [l for l in Path(str(errp)).read_text().splitlines() if l.strip()]
+                last = lines[-1] if lines else ""
+                if re.search(r"error|traceback|exception", last, re.I):
+                    sick.append(f"{label}: {last[:90]}")
+        if sick:
+            out.append((WARN, "launchd",
+                        "; ".join(sick) + " - last unattended run died. The "
+                        "jobs call the editable install: check `git -C "
+                        "~/projects/caduceus branch --show-current` is main, "
+                        "then re-run the job's command by hand"))
+        else:
+            out.append((OK, "launchd",
+                        f"{len(plists)} caduceus job(s) installed, err logs clean"))
 
     # env
     env = config.load_env()
