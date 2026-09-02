@@ -58,6 +58,18 @@ S11 docs/contracts/execution-run-contract.md mandates ops/run-guard.sh, a run le
 none exist; every execution to date is out of contract. Reviewer's one-line tests for each are in the
 PR #11 body.
 
+FINISHER EVAL — HARNESS BUILT 2026-09-02, NOT RUN, TWO GATES ARE ALEX'S. `cad eval finisher
+[--dry-run] [--passes N] [--max-usd N]`. 30 real artifacts (18 seeded / 12 clean) in `evals/finisher/`,
+rebuildable by `evals/finisher/build_items.py`; `answers.json` is the key and NEVER enters a prompt
+(verified independently against all 30 items). Deterministic anchor+keyword scoring, so no judge model —
+Claude never grades Claude. Decision rule pre-registered (design §7) and enforced in `decide()`:
+ineligible candidates (qwen/*, deepseek/*) run as calibration baselines only and can NEVER take the
+seat, whatever they score — the FINISHER-never-shares-FORGE's-family hard rule. REAL COST, measured by
+dry-run: $2.62 for the full 2-pass x 6-candidate sweep (the design's $18 hand estimate was ~7x high).
+GATES BEFORE RUNNING: (1) Alex approves the spend; (2) Alex seeds 3-4 defects himself, blind to the
+harness author, so the set is not entirely Claude-authored (design §7 bias mitigation) — add them via
+build_items.py and re-run it. Then `cad eval finisher --passes 2` and apply §7.
+
 OPEN ITEMS (1 needs Alex's call; 2 and 3 resolved 2026-08-26)
 
 0. **WHY ALEX NEVER SAW ANY OF THIS — root-caused and fixed 2026-08-26.** The morning-brief

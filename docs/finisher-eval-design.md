@@ -1,8 +1,11 @@
 # FINISHER planted-defect eval — design v1 (2026-09-02)
 
-**Status: DESIGN, pre-registered. Not run.** Running it spends OpenRouter credits
-(≈ $9 per full pass across six candidates, see §6) — gated on Alex's go-ahead.
-Nothing below has touched a model.
+**Status: BUILT and pre-registered. NOT RUN.** The harness ships in
+`caduceus/eval_finisher.py` (`cad eval finisher`); the 30-item set is in
+`evals/finisher/`. `--dry-run` measures the real cost at **$2.62** for the full
+2-pass sweep across all six candidates — 7x cheaper than the §6 hand estimate,
+which over-counted tokens. Still gated on Alex: the spend, and his own seeded
+defects (§7). Nothing below has touched a model.
 
 ## 1. Why this exists
 
@@ -114,7 +117,13 @@ Per pass: 25 items × ~2.5k tokens in + ~0.6k out per candidate.
 | deepseek-v4-pro | 1.12 | 3.37 | $0.72 |
 | qwen3.8-max | 2.00 | 6.00 | $1.29 |
 | qwen3.8-27b | 0.40 | 3.00 | $0.42 |
-| **total** | | | **≈ $9.0 per pass, ≈ $18 for 2 passes** |
+| **total** | | | **hand estimate ≈ $9.0/pass** |
+
+**Measured 2026-09-02** by `cad eval finisher --dry-run` against the live price
+cache and the real 30 items: **$2.62 total for 2 passes x 6 candidates** ($1.31
+per pass). The hand estimate above was ~7x high — it assumed 2.5k input tokens
+per item where the real median artifact is ~1.4k. The harness always prints the
+measured estimate before spending and refuses to start above `--max-usd`.
 
 Note for the permanence decision: **Sonnet 4.6 costs 1.5× Sonnet 5** on this
 price list. The 08-23 recast to qwen3.8-27b was a cost move; the eval prices
@@ -140,13 +149,13 @@ was authored independently on 08-20.
 
 1. `evals/finisher/` — `items/*.md` (25), `answers.json` (key), a
    `README` naming which items Alex seeded.
-2. `caduceus/eval_finisher.py` — builds prompts, calls OpenRouter
+2. DONE — `caduceus/eval_finisher.py` builds prompts, calls OpenRouter
    chat-completions directly with `urllib` (candidates are not seats, so
    Hermes profiles do not apply), scores deterministically, writes
    `~/.caduceus/evals/finisher-<ts>.json` + a markdown report. Budget-checked
    through `budgets.py`; refuses to run past the per-run ceiling.
-3. `cad eval finisher --dry-run` — prints every packet and the cost estimate,
-   makes no network call. Tests cover the scorer against a hand-built key
+3. DONE — `cad eval finisher --dry-run` prints the cost estimate and packet
+   count, makes no network call (proven: sockets monkeypatched to raise). Tests cover the scorer against a hand-built key
    (recall/precision arithmetic, location overlap, keyword fallback) and the
    dry-run path; the suite is proven able to fail before it is trusted.
 4. **Gate: Alex's go-ahead + his 3–4 seeded defects.** Then

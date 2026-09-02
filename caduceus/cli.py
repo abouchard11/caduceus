@@ -8,7 +8,7 @@ import sys
 import webbrowser
 from pathlib import Path
 
-from . import brief, config, dashboard, doctor, guard, models, seatsetup, telegram, budgets
+from . import brief, config, dashboard, doctor, eval_finisher, guard, models, seatsetup, telegram, budgets
 from .config import SEATS, seat_list, heterogeneity_warnings
 from .council import Council, extract_json
 from .hermes import MockTransport, OneshotTransport
@@ -590,6 +590,46 @@ def cmd_dashboard(args):
         webbrowser.open(f"file://{p}")
 
 
+def cmd_eval_finisher(args):
+    """FINISHER planted-defect recall eval. See docs/finisher-eval-design.md.
+
+    This eval exists because the 08-19 council made FINISHER's model choice
+    provisional on third-party recall evidence: deterministic keyword/anchor
+    scoring so Claude never grades Claude.
+    """
+    items_dir = Path(args.items) if args.items else config.repo_root() / "evals" / "finisher" / "items"
+    key_path = Path(args.key) if args.key else config.repo_root() / "evals" / "finisher" / "answers.json"
+    out_dir = Path(args.out) if args.out else config.caduceus_home() / "evals"
+    soul_path = config.repo_root() / "seats" / "finisher" / "SOUL.md"
+
+    candidates = eval_finisher.CANDIDATES
+    if args.candidates:
+        wanted = {c.strip() for c in args.candidates.split(",") if c.strip()}
+        candidates = [c for c in candidates if c["model"] in wanted]
+        if not candidates:
+            raise SystemExit(f"--candidates matched none of the known models: {sorted(wanted)}")
+
+    result = eval_finisher.run(
+        items_dir=items_dir, key_path=key_path, candidates=candidates,
+        passes=args.passes, dry_run=args.dry_run, max_usd=args.max_usd,
+        out_dir=out_dir, soul_path=soul_path,
+    )
+
+    est = result["estimate"]
+    _print(f"Estimate: ${est['total_usd']:.2f} for {est['n_items']} items x "
+           f"{est['n_candidates']} candidates x {est['passes']} passes")
+    for model, d in est["per_candidate"].items():
+        _print(f"  {model}: ${d['cost_usd']:.2f} ({d['price_source']})")
+
+    if result.get("dry_run"):
+        _print(f"dry-run: {result['packets']} packets queued, no network calls made")
+        return
+
+    _print(f"Actual spend: ${result['actual_spend_usd']:.2f}")
+    _print(f"Report: {result.get('out_md', '')}")
+    _print(f"Verdict: {result['verdict']}")
+
+
 def cmd_plan(args):
     """Plan competition (Emanuel's 85%): full council on the goal, then FORGE
     decomposes the winning direction into concrete tasks."""
@@ -851,6 +891,18 @@ def build_parser() -> argparse.ArgumentParser:
     s = tsub.add_parser("test", help="post a test message to the council group")
     s.add_argument("message", nargs="?")
     s.set_defaults(fn=cmd_telegram_test)
+
+    ev = sub.add_parser("eval", help="planted-defect evals")
+    evsub = ev.add_subparsers(dest="evcmd", required=True)
+    s = evsub.add_parser("finisher", help="FINISHER planted-defect recall eval")
+    s.add_argument("--dry-run", action="store_true", help="print estimate + packet count, no network")
+    s.add_argument("--passes", type=int, default=2)
+    s.add_argument("--candidates", help="comma-separated model ids to restrict to")
+    s.add_argument("--max-usd", type=float, default=25.0)
+    s.add_argument("--items", help="override items dir (default evals/finisher/items)")
+    s.add_argument("--key", help="override answer key (default evals/finisher/answers.json)")
+    s.add_argument("--out", help="override output dir (default ~/.caduceus/evals)")
+    s.set_defaults(fn=cmd_eval_finisher)
 
     return p
 
