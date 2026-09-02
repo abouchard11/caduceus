@@ -48,6 +48,24 @@ section landed in the file the operator reads.
 - 11 new tests (136 total). Verified live: section written by hand, then
   deleted and re-written by the no-agent cron on a triggered run.
 
+## Unversioned — 2026-08-29 (PR #5, recorded 2026-09-02)
+Landed on main without a CHANGELOG entry; recorded here so the log matches
+history.
+- `followup.py`: the loop between advice and reality. A council run is only
+  finished when two loops close — was the lead recommendation acted on, and
+  was it right. `ledger.settle()` closed the second; `cad followup
+  list|open|done|drop` tracks the first. Prompted by run 20260819-123157:
+  the memo was never acted on and the operator had no recollection of it.
+- Ownership routing: `cad followup agenda|triage|split|nudge` — the operator's
+  agenda shows only decisions that need a human.
+- `executor.py`: agent-owned commitments execute behind a pre-flight,
+  tool-locked gate ($15/day, $2 per action via `budgets.py`; unattended runs
+  read and test, write only NEW files under an allowed root; push/deploy/
+  network/installs never autonomous). The model returns data, a deterministic
+  wrapper decides what touches disk — every call passes `-t clarify` because
+  on the first live run FORGE wrote a file before the wrapper saw the reply.
+- `docs/contracts/execution-run-contract.md`, `docs/flag-lifecycle-ledger.md`.
+
 ## 0.3.3 — 2026-08-26
 Three silent-failure defects, all in the same family as the 0.3.1 inherited
 fallback and the 0.3.2 tools lockdown: the config on disk drifted from the
@@ -88,6 +106,17 @@ recast to `qwen/qwen3.8-27b` on 08-23 while forge was `qwen/qwen3.7-plus` —
 conformity failure the seat design exists to prevent. finisher is now
 `anthropic/claude-sonnet-4.6`, the 08-19 council's own provisional pick. The
 planted-defect eval that council asked for is still owed.
+
+## Unversioned — 2026-08-22 → 2026-08-25 (recorded 2026-09-02)
+Landed on main without a CHANGELOG entry; recorded here so the log matches
+history.
+- `82dda87` 08-22: permissive license replaced with a prospective proprietary
+  notice ("PROPRIETARY — NO LICENSE GRANTED").
+- `5ad6739` 08-25 (PR #3): spend guard — per-run ceilings and a daily cap,
+  drift-calibrated (`budgets.py`); `hermes_home()` normalized when
+  HERMES_HOME points at a seat profile; `heterogeneity_warnings()` enforces
+  FINISHER≠FORGE family separation and flags duplicate families, and
+  `cad models set` warns on the same at recast time.
 
 ## 0.3.2 — 2026-08-19
 Codifies the third 2026-08-19 incident, which until now lived only as a hand
