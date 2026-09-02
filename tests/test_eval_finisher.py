@@ -130,10 +130,13 @@ def _defect(anchor="the anchor phrase", kind="self-contradiction",
             "keywords": [list(k) for k in keywords]}
 
 
-def test_match_anchor_and_kind_equal_is_true():
+def test_match_kind_equal_without_any_keyword_is_false():
+    """Amended 2026-09-02: `kind` equality no longer counts - candidates never
+    emit the KINDS vocabulary, and a bare label with no explanation is not
+    detection. (Was: anchor + kind equal -> True.)"""
     finding = {"location": "the anchor phrase is here", "kind": "self-contradiction",
                "description": "irrelevant"}
-    assert ef.match(finding, _defect()) is True
+    assert ef.match(finding, _defect()) is False
 
 
 def test_match_anchor_wrong_kind_both_keyword_sets_hit_is_true():
@@ -149,11 +152,14 @@ def test_match_anchor_absent_is_false():
     assert ef.match(finding, _defect()) is False
 
 
-def test_match_anchor_wrong_kind_only_one_keyword_set_hits_is_false():
+def test_match_anchor_and_one_keyword_set_is_true():
+    """Amended 2026-09-02: one keyword set suffices. Requiring every set made a
+    verbatim quote of the seeded text with a correct explanation in the
+    model's own words score as a miss. (Was: only one set -> False.)"""
     finding = {"location": "the anchor phrase is here",
                "kind": "totally-different-kind",
                "description": "this is a guarantee but nothing else matches"}
-    assert ef.match(finding, _defect()) is False
+    assert ef.match(finding, _defect()) is True
 
 
 # ---------------------------------------------------------------- 4. score / aggregate
@@ -185,11 +191,11 @@ def test_score_and_aggregate_single_pass_arithmetic():
     # findings catching 2 of 3 seeded defects, with one duplicate match and
     # one false positive, plus one false positive on the clean item.
     s01_findings = [
-        {"location": "anchor-one here", "kind": "self-contradiction", "description": ""},
-        {"location": "anchor-one here", "kind": "self-contradiction", "description": ""},  # duplicate -> FP
+        {"location": "anchor-one here", "kind": "self-contradiction", "description": "kw1"},
+        {"location": "anchor-one here", "kind": "self-contradiction", "description": "kw1"},  # duplicate -> FP
     ]
     s02_findings = [
-        {"location": "anchor-three here", "kind": "verdict-bypass", "description": ""},
+        {"location": "anchor-three here", "kind": "verdict-bypass", "description": "kw5"},
     ]
     c01_findings = [
         {"location": "clean item noise", "kind": "self-contradiction", "description": ""},  # FP
@@ -213,10 +219,10 @@ def test_aggregate_across_passes_mean_and_range():
     def pass_scores(n_catch_s01, n_fp_clean):
         s01_findings = []
         if n_catch_s01 >= 1:
-            s01_findings.append({"location": "anchor-one here", "kind": "self-contradiction", "description": ""})
+            s01_findings.append({"location": "anchor-one here", "kind": "self-contradiction", "description": "kw1"})
         if n_catch_s01 >= 2:
-            s01_findings.append({"location": "anchor-two here", "kind": "cost-mismatch", "description": ""})
-        s02_findings = [{"location": "anchor-three here", "kind": "verdict-bypass", "description": ""}]
+            s01_findings.append({"location": "anchor-two here", "kind": "cost-mismatch", "description": "kw3"})
+        s02_findings = [{"location": "anchor-three here", "kind": "verdict-bypass", "description": "kw5"}]
         c01_findings = [{"location": "noise", "kind": "self-contradiction", "description": ""}] * n_fp_clean
         return [
             ef.score("S-01", s01_findings, key["S-01"]),
@@ -469,3 +475,49 @@ def test_unmatched_findings_on_a_seeded_item_are_false_positives_too():
     ]
     s = ef.score("B-99", findings, seeded)
     assert s["caught"] == 1 and s["matched_findings"] == 1 and s["false_positives"] == 1
+
+
+# --------------------------------------------- matcher amendment (2026-09-02)
+# First live smoke ($0.04, 3 calls): Sonnet 4.6 found seeded defect A-guarantee
+# and quoted its anchor verbatim - "'Guaranteed validated results inside 90
+# minutes' - 'validated' is undefined..." - and match() said NO. Two faults:
+# models never use the KINDS vocabulary (they said definitional_gap /
+# unverified_claim / policy_gap - zero overlap), so the `kind ==` path is dead;
+# and requiring EVERY keyword set forced the model to explain WHY in the key
+# author's words - which measures "phrases things like Claude", the exact bias
+# this eval exists to avoid. Amended rule, pre-registered before any further
+# spend: anchor present AND at least one keyword set hits. It raises recall
+# for every candidate equally; section 7 ranks, so the comparison survives.
+
+SMOKE_FINDING = {  # verbatim from the saved smoke run, item A-01
+    "location": "Recommendation > proposed close copy (inline)",
+    "kind": "definitional_gap",
+    "description": ("'Guaranteed validated results inside 90 minutes' — 'validated' is "
+                    "undefined. Validated by whom, against what standard, using what "
+                    "method? For a non-technical buyer this phrase either means nothing "
+                    "or implies a promise the operator may not be able to keep."),
+    "confidence": 0.8,
+}
+A_GUARANTEE = {"id": "A-guarantee", "kind": "self-contradiction",
+               "anchor": "guaranteed validated results", "section": "Recommendation",
+               "keywords": [["guarantee"],
+                            ["honest limits", "demo", "collapses", "overclaim", "contradict"]]}
+
+
+def test_a_verbatim_quote_of_the_seeded_text_counts_as_caught():
+    assert ef.match(SMOKE_FINDING, A_GUARANTEE)
+
+
+def test_anchor_alone_is_not_enough():
+    """Quoting the seeded line while saying nothing about it is not detection."""
+    f = dict(SMOKE_FINDING, description="The close copy says 'guaranteed validated results'.",
+             kind="style")
+    d = dict(A_GUARANTEE, keywords=[["undefined", "promise", "overclaim"], ["zzz"]])
+    assert not ef.match(f, d)
+
+
+def test_kind_equality_no_longer_rescues_a_finding_without_keywords():
+    f = {"location": "Recommendation", "kind": "self-contradiction",
+         "description": "guaranteed validated results", "confidence": 0.9}
+    d = dict(A_GUARANTEE, keywords=[["nope"], ["never"]])
+    assert not ef.match(f, d)
