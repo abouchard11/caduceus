@@ -18,6 +18,8 @@ else, MCP included (verified empirically 2026-08-27).
 """
 from __future__ import annotations
 
+import fcntl
+import os
 import re
 import subprocess
 import time
@@ -39,6 +41,24 @@ ALLOWED_ROOTS = (
 # Never writable even inside an allowed root.
 DENY_PARTS = (".git", ".env", ".hermes", "node_modules")
 DENY_NAMES = ("settings.json", "settings.local.json", "config.yaml")
+
+# 2026-09-02 review, proven by execution: a model-written conftest.py was run
+# by this wrapper's own pytest step - arbitrary code as the operator, no tools
+# needed. The wrapper NEVER executes model output, and never writes anything
+# a loader would execute or read as config. v1 writes prose.
+EXEC_SUFFIXES = (".py", ".pyi", ".sh", ".bash", ".zsh", ".rb", ".js", ".mjs",
+                 ".cjs", ".ts", ".yml", ".yaml", ".toml", ".cfg", ".ini",
+                 ".plist", ".json")
+EXEC_NAMES = ("makefile", "conftest.py", "dockerfile", "justfile")
+
+# Escalation is the wrapper's decision, made BEFORE any spend - never a request
+# to the model. followup.classify() routes ownership by intent; this is the
+# hard floor under it for verbs that leave the machine or change what runs.
+DANGEROUS_VERBS = re.compile(
+    r"\b(push|deploy|deploying|deployment|install|installs|publish|release|"
+    r"pull request|pr|curl|wget|fetch|npm|npx|pip|pipx|uv|brew|ssh|scp|rsync|"
+    r"vercel|launchctl|crontab|cron|webhook|network|upload|email|dm|tweet|post)\b",
+    re.I)
 
 FILE_RE = re.compile(r"===FILE:\s*(?P<path>[^\n=]+?)\s*===\n(?P<body>.*?)\n?===END===",
                      re.S)
@@ -83,16 +103,44 @@ def _validate_rel(root: Path, rel: str) -> Tuple[Optional[Path], str]:
     rel = rel.strip()
     if rel.startswith(("/", "~")) or ".." in Path(rel).parts:
         return None, f"path escapes root: {rel!r}"
+    parts_cf = [part.casefold() for part in Path(rel).parts]
+    # APFS is case-insensitive: ".GIT/hooks/pre-commit" landed in the real
+    # .git/hooks under the old exact-case check. Casefold everything, and
+    # refuse any dot-prefixed component outright (.git., .hidden, ...).
+    if any(part.startswith(".") for part in parts_cf):
+        return None, f"protected path (dot component): {rel!r}"
+    if any(part in DENY_PARTS for part in parts_cf) or parts_cf[-1] in DENY_NAMES:
+        return None, f"protected path: {rel!r}"
+    name_cf = parts_cf[-1]
+    if name_cf in EXEC_NAMES or any(name_cf.endswith(suf) for suf in EXEC_SUFFIXES):
+        return None, f"refused: executable/loader file ({rel!r}) - the wrapper never writes code"
     target = (root / rel).resolve()
     try:
         target.relative_to(root.resolve())
     except ValueError:
         return None, f"path escapes root: {rel!r}"
-    if any(part in DENY_PARTS for part in target.parts) or target.name in DENY_NAMES:
-        return None, f"protected path: {rel!r}"
     if target.exists():
         return None, f"exists (v1 writes NEW files only): {rel!r}"
     return target, ""
+
+
+def _tree_snapshot(root: Path) -> Dict[str, int]:
+    """relpath -> mtime_ns for everything under root (skipping VCS and deps).
+    Taken before and after the model call: the ONLY files that may differ are
+    the ones this wrapper writes afterwards. Any other change means a seat
+    still has a tool that touches disk - the "-t clarify" lock is an assumption
+    about hermes, this is the invariant that does not depend on it."""
+    snap: Dict[str, int] = {}
+    skip = {".git", "node_modules", ".venv", "__pycache__"}
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in skip]
+        for fn in filenames:
+            p = Path(dirpath) / fn
+            try:
+                snap[str(p.relative_to(root))] = p.stat().st_mtime_ns
+            except OSError:
+                continue
+    return snap
 
 
 def _run_tests(root: Path) -> Tuple[bool, str]:
@@ -108,11 +156,17 @@ def execute_one(c, transport=None, live: bool = False) -> ExecResult:
         return ExecResult(c.id, "blocked", f"pre-flight: {why}")
 
     root = _root_for(c.action)
+    m = DANGEROUS_VERBS.search(c.action)
+    if m:
+        return ExecResult(c.id, "escalate",
+                          f"'{m.group(1)}' leaves the machine or changes what "
+                          "runs - operator's call, no model consulted")
     if not live:
         return ExecResult(c.id, "dry-run", f"would draft via FORGE into {root}")
 
     transport = transport or OneshotTransport(extra_args=["-t", "clarify"])
     seat = config.SEATS["forge"]
+    before = _tree_snapshot(root)
     reply: SeatReply = transport.ask(
         seat, PROMPT.format(action=c.action, run_id=c.run_id, root=root))
     if not reply.ok:
@@ -121,6 +175,14 @@ def execute_one(c, transport=None, live: bool = False) -> ExecResult:
     cost = float(reply.usage.get("estimated_cost_usd", 0)
                  or reply.usage.get("cost_usd", 0) or 0) or EST_ACTION_COST
     budgets.record_execution_spend(c.id, cost, note=c.action[:120])
+
+    after = _tree_snapshot(root)
+    touched = sorted(k for k in after if before.get(k) != after[k])
+    if touched:
+        return ExecResult(c.id, "escalate",
+                          "tool lock NOT holding: the model wrote "
+                          f"{', '.join(touched)[:150]} during the call; reply "
+                          "not applied - check hermes -t semantics", cost=cost)
 
     esc = ESCALATE_RE.search(reply.text)
     if esc:
@@ -141,13 +203,9 @@ def execute_one(c, transport=None, live: bool = False) -> ExecResult:
             target.write_text(body.rstrip() + "\n")
             written.append(target)
 
-        if any(p.suffix == ".py" for p in written):
-            passed, tail = _run_tests(root)
-            if not passed:
-                raise RuntimeError(f"tests failed after write: {tail}")
-            detail_tests = f"tests: {tail}"
-        else:
-            detail_tests = "tests: skipped (no .py written)"
+        # never run anything here: _validate_rel refuses every executable or
+        # loader suffix, and the wrapper does not execute model output
+        detail_tests = "no execution (wrapper writes prose only)"
     except Exception as e:
         for p in written:  # revert everything this action touched
             try: p.unlink()
@@ -161,6 +219,26 @@ def execute_one(c, transport=None, live: bool = False) -> ExecResult:
 
 def run_queue(live: bool = False, max_actions: int = 2,
               transport=None) -> List[ExecResult]:
+    # single flight: the Mon/Thu launchd run and a manual run must never
+    # overlap - both would preflight against the same ledger, both pass,
+    # both call FORGE on the same commitment (double spend), and the loser
+    # would flip a finished item into the operator's DECIDE list.
+    lock_path = budgets.budgets_dir() / "exec.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock = open(lock_path, "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except (BlockingIOError, OSError):
+        lock.close()
+        return []
+    try:
+        return _run_queue_locked(live, max_actions, transport)
+    finally:
+        fcntl.flock(lock, fcntl.LOCK_UN)
+        lock.close()
+
+
+def _run_queue_locked(live: bool, max_actions: int, transport) -> List[ExecResult]:
     f = followup.Followups()
     queue = [c for c in f.pending()
              if c.owner == "agent" and not followup._is_diagnostic(c.run_id)]

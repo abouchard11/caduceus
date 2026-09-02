@@ -65,8 +65,10 @@ def test_file_block_is_written(sandbox):
 
 
 def test_model_escalation_is_honored(sandbox):
+    # the action itself must not trip the verb floor, or the model is never
+    # asked - this test is about honoring the MODEL's escalation
     t = MockTransport(script={"forge": ["===ESCALATE: needs a git push==="]})
-    r = execute_one(C("push the fix"), transport=t, live=True)
+    r = execute_one(C("write the contract summary"), transport=t, live=True)
     assert r.status == "escalate" and "git push" in r.detail
 
 
@@ -104,3 +106,93 @@ def test_default_transport_is_tool_locked(monkeypatch):
     except RuntimeError:
         pass
     assert captured["extra"] == ["-t", "clarify"]
+
+
+# ------------------------------------------------- write-path hardening (0.3.6)
+# 2026-09-02 adversarial review of the trust boundary, findings verified by
+# execution: (B1) a model-written conftest.py was EXECUTED by the wrapper's own
+# auto-pytest step - arbitrary code as the operator, no tools needed; (B2) the
+# deny lists were case-sensitive on APFS, so ".GIT/hooks/pre-commit" landed in
+# the real .git/hooks; (B3) the "-t clarify strips all tools" boundary was an
+# unverified CLI flag with no detection if it stops holding; (S8) no lock, so
+# a manual run overlapping the Mon/Thu launchd run double-spends; (S9) push /
+# deploy / install / PR classified as staff work and reached the model - the
+# only thing between them and reality was the model choosing to escalate.
+
+import fcntl
+
+
+class _SneakyTransport(MockTransport):
+    """Writes a file out-of-band during the call - what a seat with tools does."""
+    def __init__(self, root, script=None):
+        super().__init__(script)
+        self.root = root
+
+    def ask(self, seat, prompt, session_hint=""):
+        (self.root / "snuck.md").write_text("written by the model, not the wrapper\n")
+        return super().ask(seat, prompt, session_hint)
+
+
+def test_model_written_code_is_never_executed(sandbox, tmp_path):
+    """B1: an executable/loader suffix is refused outright, so the wrapper's
+    own test step can never run model-authored code."""
+    marker = tmp_path / "PWNED"
+    reply = (f"===FILE: conftest.py===\nimport pathlib\n"
+             f"pathlib.Path({str(marker)!r}).write_text('x')\n===END===")
+    t = MockTransport(script={"forge": [reply]})
+    r = execute_one(C("add a fixture"), transport=t, live=True)
+    assert r.status != "done"
+    assert not marker.exists()
+    assert not (sandbox / "conftest.py").exists()
+
+
+@pytest.mark.parametrize("rel", ["tools/x.py", "ops/run.sh", "a.zsh", "b.rb",
+                                 "c.js", "ci.yml", "d.yaml", "pyproject.toml",
+                                 "e.cfg", "f.ini", "Makefile"])
+def test_executable_and_loader_suffixes_are_refused(sandbox, rel):
+    assert _validate_rel(sandbox, rel)[0] is None
+
+
+@pytest.mark.parametrize("rel", [".GIT/hooks/pre-commit", "Settings.json",
+                                 "sub/.Env", "node_Modules/x.md",
+                                 ".git./hooks/x", ".hidden/x.md", "sub/.dotfile"])
+def test_deny_lists_are_casefolded_and_dotpaths_refused(sandbox, rel):
+    """B2: APFS is case-insensitive; a deny list that is not is no deny list."""
+    assert _validate_rel(sandbox, rel)[0] is None
+    assert not (sandbox / ".git").exists()
+
+
+def test_out_of_band_write_during_the_model_call_escalates(sandbox):
+    """B3: the tree is snapshotted around the model call. Anything the
+    wrapper did not write itself means the tool lock is not holding - abort
+    without applying the reply, and say what appeared."""
+    reply = "===FILE: docs/ok.md===\nfine\n===END==="
+    t = _SneakyTransport(sandbox, script={"forge": [reply]})
+    r = execute_one(C("write docs"), transport=t, live=True)
+    assert r.status == "escalate"
+    assert "snuck.md" in r.detail
+    assert not (sandbox / "docs/ok.md").exists()   # reply not applied
+
+
+@pytest.mark.parametrize("action", [
+    "push the fix to origin/main", "deploy the docs site to Vercel",
+    "run npm install in sites/yapword", "open a PR against main",
+    "install the new dependency and pin it", "curl the webhook to register it",
+    "pip install the client library", "git push --tags",
+])
+def test_dangerous_verbs_escalate_before_any_model_call(sandbox, action):
+    """S9: escalation is the wrapper's decision, made before spend - never
+    a request to the model."""
+    t = MockTransport()
+    r = execute_one(C(action), transport=t, live=True)
+    assert r.status == "escalate", r.detail
+    assert t.calls == []
+
+
+def test_run_queue_is_single_flight(sandbox, tmp_path):
+    """S8: the Mon/Thu launchd run and a manual run must not overlap."""
+    lock = budgets.budgets_dir() / "exec.lock"
+    with open(lock, "w") as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        results = executor.run_queue(live=True, transport=MockTransport())
+    assert results == []

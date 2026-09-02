@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.3.6 — 2026-09-02
+Adversarial review of the executor's write path (the seat-work executor runs
+UNATTENDED from launchd, Mon/Thu 08:45, `--live`). Findings verified by
+execution, not reading. Two were proven code-execution paths:
+- B1: a model-written `conftest.py` was EXECUTED by the wrapper's own
+  auto-pytest step — arbitrary code as the operator, no tools needed, so the
+  `-t clarify` tool lock was irrelevant. Fixed: the wrapper never executes
+  model output (auto-pytest deleted) and refuses every executable or loader
+  suffix (`.py .sh .js .yml .toml .json …`, `Makefile`, `conftest.py`).
+- B2: deny lists were case-sensitive on a case-insensitive filesystem —
+  `.GIT/hooks/pre-commit` landed in the real `.git/hooks`. Fixed: casefolded
+  deny lists, and any dot-prefixed path component is refused outright.
+- B3: the `-t clarify` boundary was an unverified CLI flag with no detection
+  if it stopped holding. Fixed: the tree is snapshotted around the model call;
+  any file the wrapper did not write itself escalates and the reply is not
+  applied — an invariant that does not depend on hermes' `-t` semantics.
+- S8: no lock, so a manual run overlapping the launchd run double-spent.
+  Fixed: `flock` single-flight on `exec.lock`; a second run returns empty.
+- S9: push / deploy / install / PR / curl classified as staff work and reached
+  the model — the only thing between them and reality was the model choosing
+  to escalate. Fixed: a deterministic dangerous-verb floor escalates BEFORE
+  any spend, no model consulted. Errs toward escalation ("release notes"
+  trips "release") — a false positive lands on the operator's agenda, never
+  silently.
+- New doctor row: launchd jobs watched by their err log (both caduceus jobs
+  had died silently with `invalid choice: 'exec'`).
+- 28 new tests (179 total). Still open, budget/contract-class, listed in
+  HANDOFF: S4 per-action cap vs actual cost, S5 daily gate fails open on an
+  unreadable DB, S6 drift multiplier, S7 failed calls book $0, S10, S11.
+
 ## 0.3.5 — 2026-09-01
 The ledger was scoring the operator's non-execution as the seats' failure.
 4 of the 8 losses recorded 08-26..08-27 carried "never executed" notes: the

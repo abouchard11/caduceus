@@ -40,6 +40,24 @@ pre-registered (§7). Cost ≈ $9/pass, $18 for 2 passes. TWO GATES BEFORE IT RU
 spend, and seed 3–4 defects himself blind to the harness author (§7 bias mitigation). Harness (`cad eval
 finisher --dry-run`) is the next build step and spends nothing.
 
+EXECUTOR WRITE PATH — ADVERSARIALLY REVIEWED 2026-09-02, TWO PROVEN EXPLOITS CLOSED, SIX FINDINGS OPEN.
+`cad exec run --live --max 2` runs UNATTENDED from launchd Mon/Thu 08:45 (`~/Library/LaunchAgents/
+dev.midnightdev.caduceus.exec.plist`) — it calls the editable install, so LEAVE MAIN CHECKED OUT. Review
+(Opus, findings verified by execution) found: B1 a model-written conftest.py was executed by the wrapper's
+own auto-pytest step; B2 deny lists were case-sensitive on APFS (".GIT/hooks/pre-commit" reached the real
+.git/hooks); B3 the "-t clarify" tool lock was an unverified flag with no detection; S8 no lock, double
+spend on overlap; S9 push/deploy/install/PR classified as staff work and reached the model. FIXED (0.3.6):
+executable/loader suffixes refused, deny lists casefolded + dot-components refused, auto-pytest deleted
+(the wrapper never executes model output), tree snapshot around the model call escalates on any
+out-of-band write, flock single-flight, deterministic dangerous-verb floor before any spend.
+STILL OPEN (do before trusting an unattended run with a NON-EMPTY queue — queue is empty today):
+S4 $2/action cap is checked against a constant, never the actual cost; S5 daily household gate FAILS OPEN
+when a profile state.db is unreadable; S6 DRIFT_MULTIPLIER not applied to executor spend (effective cap
+~$37.5/day); S7 a failed/timed-out call books $0; S10 `_root_for` ignores the action (docstring false);
+S11 docs/contracts/execution-run-contract.md mandates ops/run-guard.sh, a run ledger, a 3-abort breaker —
+none exist; every execution to date is out of contract. Reviewer's one-line tests for each are in the
+PR #11 body.
+
 OPEN ITEMS (1 needs Alex's call; 2 and 3 resolved 2026-08-26)
 
 0. **WHY ALEX NEVER SAW ANY OF THIS — root-caused and fixed 2026-08-26.** The morning-brief
