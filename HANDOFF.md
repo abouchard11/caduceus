@@ -33,6 +33,13 @@ CHECK-constraint rebuild migration (backup: ~/.caduceus/ledger.db.bak-20260901-p
 four "never executed" losses ($100 run: envoy+finisher; feature flags: forge+finisher) re-settled as
 unexecuted. Rule for future settlements: if the advice was never tried, `--unexecuted`, not `--loser`.
 
+FINISHER EVAL — DESIGNED, NOT RUN (2026-09-02). `docs/finisher-eval-design.md`: 25 artifacts (13 seeded /
+12 clean) across memos, guard verdicts, state records, and the existing 08-20 CLEAN/PLANTED premise set;
+blind identical prompts; deterministic scoring (no judge model — Claude never grades Claude); decision rule
+pre-registered (§7). Cost ≈ $9/pass, $18 for 2 passes. TWO GATES BEFORE IT RUNS, both Alex's: approve the
+spend, and seed 3–4 defects himself blind to the harness author (§7 bias mitigation). Harness (`cad eval
+finisher --dry-run`) is the next build step and spends nothing.
+
 OPEN ITEMS (1 needs Alex's call; 2 and 3 resolved 2026-08-26)
 
 0. **WHY ALEX NEVER SAW ANY OF THIS — root-caused and fixed 2026-08-26.** The morning-brief
