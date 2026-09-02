@@ -29,6 +29,13 @@ from . import config
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
+# Cap every request. Without it OpenRouter reserves the model's ceiling
+# (65536) against the remaining balance and returns HTTP 402 - which killed
+# 22/30 Sonnet 5 calls and 29/30 Kimi calls in the 2026-09-02 pass-1 sweep.
+# Same defect v0.3.1 fixed for seat profiles (max_tokens: 8192); the harness
+# did not inherit it. A JSON findings array never needs 64k of headroom.
+MAX_TOKENS = 2048
+
 # Candidates are NOT seats — they are compared against FINISHER's current
 # seat model, so Hermes profiles/casting do not apply here. The three
 # "calibration" entries are ineligible-by-design controls: RECON's family
@@ -389,6 +396,7 @@ def call_openrouter(model: str, messages: List[Dict], key: str,
         "model": model,
         "messages": messages,
         "temperature": 0.2,
+        "max_tokens": MAX_TOKENS,
     }).encode()
     req = urllib.request.Request(
         OPENROUTER_URL,
