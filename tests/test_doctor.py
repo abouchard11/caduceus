@@ -459,3 +459,41 @@ def test_launchd_row_absent_when_no_jobs_installed(monkeypatch, tmp_path):
     _launchd_dir(monkeypatch, tmp_path)
 
     assert _row(doctor.checks(), "launchd") is None
+
+
+# --------------------------------------------- brief staleness window (0.3.7)
+# 2026-09-02 06:44: doctor FAILed "morning brief stale: last dated 2026-09-01
+# (31h ago)" on a completely healthy engine - scheduler alive, last_status ok,
+# next run 07:00, 16 minutes away. The heading carries a DATE only, so age is
+# measured from 00:00 of that date; with a 07:00 daily cron the maximum HEALTHY
+# age is 31h (written 07:00 day N, checked 06:59 day N+1). The 30h threshold
+# therefore cried wolf every morning between 06:00 and 07:00. A check that
+# false-alarms daily is a check the operator learns to ignore - which is how
+# the silent failure it exists to catch gets through.
+
+def test_brief_delivery_ok_in_the_hour_before_the_cron_fires(monkeypatch, tmp_path):
+    """The 06:00-07:00 window on a healthy engine: yesterday's brief, next run
+    imminent. 31h old and CORRECT."""
+    _make_all_seat_profiles()
+    _pending_file(monkeypatch, tmp_path,
+                  "# pending\n\n## Caduceus morning brief (2026-09-01)\n\nbody\n")
+    monkeypatch.setattr(_brief, "age_hours",
+                        lambda *a, **k: 31.0)
+
+    status, detail = _row(doctor.checks(), "brief delivery")
+
+    assert status == doctor.OK, detail
+
+
+def test_brief_delivery_fails_when_a_scheduled_run_was_actually_missed(monkeypatch, tmp_path):
+    """One missed 07:00 run puts the brief at >=55h. That must still FAIL -
+    widening the window must not blind the check."""
+    _make_all_seat_profiles()
+    _pending_file(monkeypatch, tmp_path,
+                  "# pending\n\n## Caduceus morning brief (2026-08-31)\n\nbody\n")
+    monkeypatch.setattr(_brief, "age_hours", lambda *a, **k: 55.0)
+
+    status, detail = _row(doctor.checks(), "brief delivery")
+
+    assert status == doctor.FAIL
+    assert "cad brief --write" in detail

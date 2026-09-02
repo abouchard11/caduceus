@@ -18,6 +18,15 @@ from .seatsetup import (hermes_bin, profile_dir, run_hermes,
 
 OK, WARN, FAIL = "OK ", "WARN", "FAIL"
 
+# The brief heading carries a DATE only, so age is measured from 00:00 of that
+# date. With the 07:00 daily cron the maximum HEALTHY age is 31h (written 07:00
+# day N, read 06:59 day N+1) - the old 30h threshold FAILed every morning in
+# the 06:00-07:00 window on a live, healthy engine (seen 2026-09-02 06:44).
+# A check that cries wolf daily is one the operator learns to ignore, which is
+# exactly how the silent failure it exists to catch gets through. 36h clears
+# the healthy window and still catches one missed run (>=55h).
+STALE_BRIEF_HOURS = 36
+
 
 def checks() -> List[Tuple[str, str, str]]:
     out: List[Tuple[str, str, str]] = []
@@ -204,7 +213,7 @@ def checks() -> List[Tuple[str, str, str]]:
                     f"morning brief has never been written to {brief.pending_file()} "
                     "- run `cad brief --write`; the cron should do this daily "
                     "(cad init --cron)"))
-    elif age > 30:
+    elif age > STALE_BRIEF_HOURS:
         date = brief.heading_date(brief.MORNING_HEADING)
         out.append((FAIL, "brief delivery",
                     f"morning brief stale: last dated {date} ({age:.0f}h ago) - "
