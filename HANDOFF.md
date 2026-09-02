@@ -1,4 +1,4 @@
-HANDOFF — Caduceus state as of 2026-08-26 (late evening)
+HANDOFF — Caduceus state as of 2026-09-01
 Read this first. It is the single source of truth for where things stand. Previous handoff was 2026-08-19 evening and went a full week stale; several of its claims were wrong by the time it was re-read (everything it listed as "unpushed" had shipped). Dates below are absolute for that reason.
 
 What this project is
@@ -18,6 +18,14 @@ What landed since the 2026-08-19 handoff (all on origin/main)
 * CHANGELOG still has no entry for the spend guard, the license change or the family guard (they landed on main without one). The 0.3.3 entry added here does NOT cover them — a catch-up entry is still owed.
 
 Live engine state (`cad doctor`, 2026-08-26): 0 failures, 4 warnings. Hermes v0.20.5. Guard hook wired into all 5 seat profiles, 23 rules, `rm -rf /` → CRITICAL. 2 caduceus cron jobs. Warnings after the 0.3.3 fixes below: no gateways up (expected), telegram unconfigured (optional), 11 unsettled runs. All five seats green.
+
+0.3.4 (2026-09-01) — THE 0.3.3 ALERTING FIX WAS HALF-WORKING. The re-registered LLM cron never
+wrote the brief (timeout inside a delegate_task subagent; weekly job "ok" with nothing written), and
+doctor's cron-status row could not see it. Now: `cad brief --write` is stdlib + deterministic, the
+cron is `--no-agent` (script IS the job, no model, no spend), and doctor's "brief delivery" row checks
+the dated section in ~/CLAUDE-PENDING-ACTIONS.md itself. Verified live 2026-09-01. The first real
+brief surfaced an unexecuted 5-day-old commitment: file the $65 micro-entity US provisional
+(run 20260827-025657-e55b18, followup 89356b82b722) — needs Alex.
 
 OPEN ITEMS (1 needs Alex's call; 2 and 3 resolved 2026-08-26)
 

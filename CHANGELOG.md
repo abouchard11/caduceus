@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.3.4 — 2026-09-01
+The 0.3.3 alerting fix was half-working, and its own health check could not
+tell. The LLM-driven morning-brief cron had NEVER once written its
+deliverable: its last run died on a 1040s idle timeout inside a subagent it
+spawned via `delegate_task` (on the operator's spend), and the weekly job
+reported `last_status=ok` on 08-31 having written nothing. So the cron-health
+row added in 0.3.3 was a false green of exactly the class it was built to
+catch — it read job status, and the only thing that matters is whether the
+section landed in the file the operator reads.
+- New `cad brief [--weekly] [--write]` (`caduceus/brief.py`): the operator
+  brief is now DETERMINISTIC — stdlib gathers unsettled runs and unexecuted
+  commitments (`followup.status()`), dead caduceus cron jobs, guard blocks in
+  24h, and the ledger table, renders the section itself, and writes it into
+  `~/CLAUDE-PENDING-ACTIONS.md` (the file surfaced at every Claude session
+  start). Every item names its verb. No model in the path: nothing to time
+  out, nothing to delegate, nothing to spend.
+- Cron jobs are now `--script … --no-agent`: hermes runs
+  `~/.hermes/scripts/caduceus-*.sh` AS the job and delivers stdout verbatim.
+  `cad init --cron` writes the scripts and registers the jobs. No prompt.
+- `cad doctor` gained a "brief delivery" row that checks the ARTIFACT: FAIL
+  if the dated section was never written or is >30h old, naming
+  `cad brief --write`. The 0.3.3 cron-status row stays as a secondary signal.
+- `Ledger.register_run()` `memo_path` now defaults to `""`.
+- 11 new tests (136 total). Verified live: section written by hand, then
+  deleted and re-written by the no-agent cron on a triggered run.
+
 ## 0.3.3 — 2026-08-26
 Three silent-failure defects, all in the same family as the 0.3.1 inherited
 fallback and the 0.3.2 tools lockdown: the config on disk drifted from the

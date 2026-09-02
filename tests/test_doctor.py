@@ -345,3 +345,55 @@ def test_cron_ok_when_jobs_are_healthy():
     status, detail = _row(doctor.checks(), "cron")
 
     assert status == doctor.OK
+
+
+# ------------------------------------------------------ brief delivery (0.3.4)
+# 2026-09-01: the cron-health row above was itself a false green - the weekly
+# job said last_status=ok and had written nothing. Delivery is the artifact:
+# doctor reads the dated section in the operator's pending-actions file.
+
+from caduceus import brief as _brief
+
+
+def _pending_file(monkeypatch, tmp_path, text=None):
+    p = tmp_path / "PENDING.md"
+    monkeypatch.setenv(_brief.PENDING_ENV, str(p))
+    if text is not None:
+        p.write_text(text)
+    return p
+
+
+def test_brief_delivery_fails_when_never_written(monkeypatch, tmp_path):
+    _make_all_seat_profiles()
+    _pending_file(monkeypatch, tmp_path, "# pending\n\n## 1. thing\n")
+
+    status, detail = _row(doctor.checks(), "brief delivery")
+
+    assert status == doctor.FAIL
+    assert "never" in detail
+    assert "cad brief --write" in detail
+
+
+def test_brief_delivery_fails_when_stale(monkeypatch, tmp_path):
+    _make_all_seat_profiles()
+    _pending_file(monkeypatch, tmp_path,
+                  "# pending\n\n## Caduceus morning brief (2026-08-20)\n\nold\n")
+
+    status, detail = _row(doctor.checks(), "brief delivery")
+
+    assert status == doctor.FAIL
+    assert "2026-08-20" in detail
+    assert "cad brief --write" in detail
+
+
+def test_brief_delivery_ok_when_fresh(monkeypatch, tmp_path):
+    _make_all_seat_profiles()
+    import datetime as dt
+    today = dt.date.today().isoformat()
+    _pending_file(monkeypatch, tmp_path,
+                  f"# pending\n\n## Caduceus morning brief ({today})\n\nfresh\n")
+
+    status, detail = _row(doctor.checks(), "brief delivery")
+
+    assert status == doctor.OK
+    assert today in detail

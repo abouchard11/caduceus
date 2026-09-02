@@ -8,7 +8,7 @@ import sqlite3
 from pathlib import Path
 from typing import List, Tuple
 
-from . import config
+from . import brief, config
 from .config import SEATS
 from .hermes import ApiTransport
 from .seatsetup import (hermes_bin, profile_dir, run_hermes,
@@ -191,6 +191,26 @@ def checks() -> List[Tuple[str, str, str]]:
     else:
         out.append((WARN, "cron", "no jobs.json - morning brief not scheduled "
                     "(cad init --cron)"))
+
+    # brief delivery - the artifact, not the job status. 2026-09-01: the cron
+    # row above was itself a false green (last_status=ok, nothing written),
+    # so this checks the one thing that actually matters: did the dated
+    # section land in the file the operator reads at session start.
+    age = brief.age_hours(brief.MORNING_HEADING)
+    if age is None:
+        out.append((FAIL, "brief delivery",
+                    f"morning brief has never been written to {brief.pending_file()} "
+                    "- run `cad brief --write`; the cron should do this daily "
+                    "(cad init --cron)"))
+    elif age > 30:
+        date = brief.heading_date(brief.MORNING_HEADING)
+        out.append((FAIL, "brief delivery",
+                    f"morning brief stale: last dated {date} ({age:.0f}h ago) - "
+                    "cron is not delivering; run `cad brief --write` and check "
+                    "`hermes cron list`"))
+    else:
+        date = brief.heading_date(brief.MORNING_HEADING)
+        out.append((OK, "brief delivery", f"morning brief delivered {date}"))
 
     # telegram bridge
     from . import telegram as tg

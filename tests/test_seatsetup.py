@@ -4,7 +4,9 @@ through `cad init` + `cad doctor` (both reported clean) until it 402'd
 mid-council. These tests pin the fix: patch_profile_config must neutralize
 whatever `hermes profile create --clone` copied in, every time, idempotently.
 """
-from caduceus import seatsetup
+import os
+
+from caduceus import config, seatsetup
 from caduceus.config import SEATS
 
 # Shape of what `hermes profile create --clone` actually produced: the
@@ -556,3 +558,32 @@ def test_init_leaves_uncast_seats_on_their_shipped_default(monkeypatch):
 
     text = (seatsetup.profile_dir("recon") / "config.yaml").read_text()
     assert seatsetup.scalar_in_top(text, "model", "default") == SEATS["recon"].model
+
+
+# ------------------------------------------------- no-agent brief cron (0.3.4)
+# The brief cron must not have a model in its delivery path: hermes runs the
+# script AS the job (--script + --no-agent) and delivers stdout verbatim.
+
+def test_install_cron_registers_no_agent_script_jobs(monkeypatch):
+    calls = []
+
+    def fake_run(args, timeout=60):
+        calls.append(args)
+        return 0, "created"
+
+    monkeypatch.setattr(seatsetup, "run_hermes", fake_run)
+    log = []
+    seatsetup.install_cron(log)
+
+    names = {a[a.index("--name") + 1] for a in calls}
+    assert {"caduceus-morning-brief", "caduceus-weekly-ledger"} <= names
+    for a in calls:
+        assert "--no-agent" in a and "--script" in a
+        assert not any("Run the caduceus-council" in x for x in a)  # no prompt
+    scripts = config.hermes_home() / "scripts"
+    morning = scripts / "caduceus-morning-brief.sh"
+    weekly = scripts / "caduceus-weekly-ledger.sh"
+    assert morning.exists() and weekly.exists()
+    assert "brief --write" in morning.read_text()
+    assert "brief --weekly --write" in weekly.read_text()
+    assert os.access(morning, os.X_OK)
