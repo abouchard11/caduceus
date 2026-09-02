@@ -610,3 +610,26 @@ def test_resume_reuses_recorded_calls_and_never_respends(tmp_path, monkeypatch):
                resume=prior)
     assert n["calls"] == 0                                   # nothing re-spent
     assert r["summary"]["candidates"]["a/b"]["recall"]["mean"] == 1.0   # prior results still count
+
+
+# ------------------------------------------------ max_tokens cap (2026-09-02)
+# The pass-1 sweep lost Sonnet 5 (22/30) and Kimi K3 (29/30) to HTTP 402:
+# "You requested up to 65536 tokens, but can only afford 59888." The harness
+# sent no max_tokens, so OpenRouter reserved each model's ceiling against the
+# remaining balance. This is the SAME defect v0.3.1 fixed for seat profiles
+# (model_block() writes max_tokens: 8192) - the new harness did not inherit
+# it. A findings array never needs 64k of headroom.
+
+def test_request_caps_max_tokens(monkeypatch):
+    sent = {}
+    class _R(io.BytesIO):
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+    def fake(req, timeout=None):
+        sent["body"] = _json.loads(req.data.decode())
+        return _R(_json.dumps({"choices": [{"message": {"content": "[]"}}],
+                               "usage": {"cost": 0.001}}).encode())
+    monkeypatch.setattr(ef.urllib.request, "urlopen", fake)
+    ef.call_openrouter("x/y", [{"role": "user", "content": "hi"}], "k")
+    assert sent["body"]["max_tokens"] == ef.MAX_TOKENS
+    assert ef.MAX_TOKENS <= 8192          # a findings array needs nothing near 64k
