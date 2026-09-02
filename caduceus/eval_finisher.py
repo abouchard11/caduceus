@@ -184,37 +184,35 @@ def parse_findings(raw: str) -> Tuple[List[Dict], bool]:
 # ---------------------------------------------------------------- matching
 
 def match(finding: Dict, defect: Dict) -> bool:
-    """True iff the anchor text appears in the finding AND the finding
-    agrees on kind (directly, or via two independent keyword sets).
+    """True iff the defect's anchor appears in the finding AND at least one
+    keyword set hits.
 
-    Keeping the keyword-set fallback is what lets a candidate describe the
-    same defect in different words and still get credit; requiring BOTH
-    sets (not either) is what stops an unrelated finding on the right
-    paragraph from counting.
+    Amended 2026-09-02 after the first live smoke ($0.04), pre-registered
+    before any further spend. The original rule was anchor AND (kind == OR
+    EVERY keyword set). Both halves failed on real output: models never use
+    the KINDS vocabulary (definitional_gap, unverified_claim, policy_gap -
+    zero overlap), so `kind ==` was dead; and demanding every set made a
+    candidate that quoted the seeded line verbatim and explained it correctly
+    in its own words score as a MISS - measuring "phrases things like the key
+    author" instead of detection, the exact bias this eval exists to avoid.
+    Requiring one set keeps "quoted it but said nothing" from counting. The
+    change lifts recall for every candidate alike; section 7 ranks, so the
+    comparison is unaffected.
     """
     anchor = str(defect.get("anchor", "")).casefold()
-    loc_desc = (
-        str(finding.get("location", "")) + " " + str(finding.get("description", ""))
-    ).casefold()
-    if anchor and anchor not in loc_desc:
-        return False
     if not anchor:
         return False
-
-    if finding.get("kind") == defect.get("kind"):
-        return True
-
-    haystack = loc_desc + " " + str(finding.get("kind", "")).casefold()
-    keyword_sets = defect.get("keywords") or []
-    if keyword_sets and all(
-        any(str(alt).casefold() in haystack for alt in kw_set)
-        for kw_set in keyword_sets
-    ):
-        return True
-    return False
-
-
-# ---------------------------------------------------------------- scoring
+    # location + description ONLY. Folding the finding's own `kind` label in
+    # let a bare "self-contradiction" tag satisfy the keyword "contradict"
+    # with no explanation at all - a label is not detection.
+    text = (str(finding.get("location", "")) + " "
+            + str(finding.get("description", ""))).casefold()
+    if anchor not in text:
+        return False
+    sets = defect.get("keywords") or []
+    if not sets:
+        return False
+    return any(any(str(alt).casefold() in text for alt in group) for group in sets)
 
 def score(item_id: str, findings: List[Dict], key_entry: Dict) -> Dict:
     """Score one candidate's findings on one item against its key entry.

@@ -1,6 +1,6 @@
 # FINISHER planted-defect eval — design v1 (2026-09-02)
 
-**Status: BUILT and pre-registered. NOT RUN.** The harness ships in
+**Status: BUILT, pre-registered, matcher amended after smoke (§5). Validation sweep pending; permanence decision NOT made.** The harness ships in
 `caduceus/eval_finisher.py` (`cad eval finisher`); the 30-item set is in
 `evals/finisher/`. `--dry-run` measures the real cost at **$2.62** for the full
 2-pass sweep across all six candidates — 7x cheaper than the §6 hand estimate,
@@ -94,10 +94,25 @@ session, which matters for §7.
   you find as JSON: `[{location, kind, description, confidence}]`. Report an
   empty list if you find none.”* No candidate is told whether an item is
   seeded, nor how many defects it holds.
-- **No judge model.** A finding matches a seeded defect iff its `location`
-  overlaps the key's location AND (`kind` matches OR its description hits
-  both keyword sets). Deterministic, re-runnable, and Claude never grades
-  Claude.
+- **No judge model.** A finding matches a seeded defect iff the defect's
+  anchor text appears in the finding's location+description AND at least one
+  of the key's keyword sets hits. Deterministic, re-runnable, and Claude never
+  grades Claude.
+
+  *Amended 2026-09-02, after a 3-call / $0.04 smoke and before any further
+  spend.* The original rule (anchor AND (`kind` matches OR ALL keyword sets))
+  scored a verbatim quote of seeded defect A-guarantee — with a correct
+  explanation in the model's own words — as a MISS. Two faults: candidates
+  never emit the `kind` vocabulary (they said `definitional_gap`,
+  `unverified_claim`, `policy_gap`; zero overlap), so that path was dead; and
+  requiring every set measured "phrases it like the key author", the bias
+  this eval exists to avoid. The amendment lifts recall for every candidate
+  equally; §7 ranks, so the comparison stands. Anchors are not unique across
+  items, but matching is per-item, so that cannot create false positives.
+  Known residual: `fp_rate` counts legitimate observations on clean items
+  (e.g. that `--force-with-lease` still rewrites shared history) as false
+  positives — it measures willingness to comment as much as hallucination.
+  It is applied relative to the incumbent in §7, which is why it survives.
 - **Passes.** 2 passes per candidate at the model's default temperature.
   Report mean and range; a result whose range straddles the decision margin
   is reported as *undecided*, not rounded.
