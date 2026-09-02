@@ -137,7 +137,7 @@ def build() -> str:
 
     ledger_rows = "".join(
         f"<tr><td>{esc(r['seat'])}</td><td>{esc(r['domain'])}</td>"
-        f"<td>{r['win']}/{r['mixed']}/{r['loss']}</td>"
+        f"<td>{r['win']}/{r['mixed']}/{r['loss']}/{r['unexecuted']}</td>"
         f"<td>{r['believability']:.3f} <span class='dim'>({esc(r['basis'])})</span></td></tr>"
         for r in table[:14]
     ) or "<tr><td colspan=4 class='dim'>no settled outcomes yet - councils run, reality settles</td></tr>"

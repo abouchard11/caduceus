@@ -175,10 +175,10 @@ def cmd_ledger_show(args):
     if not rows:
         _print("ledger empty - councils run, reality settles, believability moves")
         return
-    _print(f"{'seat':<10}{'domain':<16}{'w/m/l':<10}{'score':<8}basis")
+    _print(f"{'seat':<10}{'domain':<16}{'w/m/l/u':<12}{'score':<8}basis")
     for r in rows:
-        _print(f"{r['seat']:<10}{r['domain']:<16}"
-               f"{str(r['win']) + '/' + str(r['mixed']) + '/' + str(r['loss']):<10}"
+        wmlu = f"{r['win']}/{r['mixed']}/{r['loss']}/{r['unexecuted']}"
+        _print(f"{r['seat']:<10}{r['domain']:<16}{wmlu:<12}"
                f"{r['believability']:<8}{r['basis']}")
     led.close()
 
@@ -216,12 +216,41 @@ def cmd_ledger_settle(args):
                      winners=args.winner or [],
                      losers=args.loser or [],
                      mixed=args.mixed or [],
+                     unexecuted=args.unexecuted or [],
                      note=args.note or "",
                      models=seat_models)
     for seat, oid in out.items():
         _print(f"settled {seat}: {oid}")
     if not out:
-        _print("run marked settled with no outcomes (use --winner/--loser/--mixed)")
+        _print("run marked settled with no outcomes (use --winner/--loser/--mixed/--unexecuted)")
+    led.close()
+
+
+def cmd_ledger_resettle(args):
+    led = Ledger()
+    # attribute outcomes to the models that actually sat in the seats
+    seat_models = {}
+    run_file = config.runs_dir() / f"{args.run_id}.json"
+    if run_file.exists():
+        try:
+            seat_models = json.loads(run_file.read_text()).get("models", {}) or {}
+        except Exception:
+            pass
+    voided = led.conn.execute(
+        "SELECT COUNT(*) FROM outcomes WHERE task_ref=? AND voided=0", (args.run_id,)
+    ).fetchone()[0]
+    out = led.resettle(args.run_id,
+                       winners=args.winner or [],
+                       losers=args.loser or [],
+                       mixed=args.mixed or [],
+                       unexecuted=args.unexecuted or [],
+                       note=args.note or "",
+                       models=seat_models)
+    _print(f"resettled {args.run_id}: {voided} prior outcome(s) voided")
+    for seat, oid in out.items():
+        _print(f"settled {seat}: {oid}")
+    if not out:
+        _print("run marked settled with no outcomes (use --winner/--loser/--mixed/--unexecuted)")
     led.close()
 
 
@@ -717,7 +746,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(fn=cmd_ledger_runs)
     s = lsub.add_parser("record", help="record one outcome directly")
     s.add_argument("seat"); s.add_argument("domain")
-    s.add_argument("result", choices=["win", "mixed", "loss"])
+    s.add_argument("result", choices=["win", "mixed", "loss", "unexecuted"])
     s.add_argument("--ref"); s.add_argument("--note")
     s.set_defaults(fn=cmd_ledger_record)
     s = lsub.add_parser("settle", help="judge a council run against reality")
@@ -725,8 +754,18 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--winner", action="append")
     s.add_argument("--loser", action="append")
     s.add_argument("--mixed", action="append")
+    s.add_argument("--unexecuted", action="append")
     s.add_argument("--note")
     s.set_defaults(fn=cmd_ledger_settle)
+    s = lsub.add_parser("resettle",
+                        help="void a run's prior outcomes and settle it again (history kept)")
+    s.add_argument("run_id")
+    s.add_argument("--winner", action="append")
+    s.add_argument("--loser", action="append")
+    s.add_argument("--mixed", action="append")
+    s.add_argument("--unexecuted", action="append")
+    s.add_argument("--note")
+    s.set_defaults(fn=cmd_ledger_resettle)
 
     ap = sub.add_parser("approve", help="two-person rule tokens")
     asub = ap.add_subparsers(dest="acmd", required=True)

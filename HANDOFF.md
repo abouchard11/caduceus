@@ -27,6 +27,12 @@ the dated section in ~/CLAUDE-PENDING-ACTIONS.md itself. Verified live 2026-09-0
 brief surfaced an unexecuted 5-day-old commitment: file the $65 micro-entity US provisional
 (run 20260827-025657-e55b18, followup 89356b82b722) — needs Alex.
 
+0.3.5 (2026-09-01) — LEDGER NO LONGER SCORES NON-EXECUTION AS SEAT FAILURE. New `unexecuted`
+outcome (zero weight, closes the run), `cad ledger resettle` (voids prior rows, history kept), and a
+CHECK-constraint rebuild migration (backup: ~/.caduceus/ledger.db.bak-20260901-pre-unexecuted). The
+four "never executed" losses ($100 run: envoy+finisher; feature flags: forge+finisher) re-settled as
+unexecuted. Rule for future settlements: if the advice was never tried, `--unexecuted`, not `--loser`.
+
 OPEN ITEMS (1 needs Alex's call; 2 and 3 resolved 2026-08-26)
 
 0. **WHY ALEX NEVER SAW ANY OF THIS — root-caused and fixed 2026-08-26.** The morning-brief
