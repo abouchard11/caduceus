@@ -6,6 +6,7 @@ never clobbered blind.
 """
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -583,47 +584,61 @@ def install_guard_hook(log: List[str], write: bool = False,
     return snippet
 
 
+# WHY these jobs carry a script and no prompt (2026-09-01):
+#
+# The old prompt-driven morning-brief cron had NEVER once written its
+# deliverable. Its last run died on a 1040s idle timeout inside a subagent it
+# spawned via delegate_task - a full-agent cron burning the operator's spend
+# on subagents he never asked for, in a job whose entire purpose was to
+# summarize things that were already sitting in the ledger and cron logs.
+# The weekly job wasn't dying, either: it reported last_status=ok and had
+# ALSO written nothing, because "ok" only meant the model finished a turn,
+# not that it did the file edit it was told to do.
+#
+# `cad brief` is stdlib and writes the section itself - deterministic, cheap,
+# and structurally incapable of an idle timeout. So the cron job is no
+# longer a prompt at all: it is a shell script that shells out to `cad brief
+# --write`, registered with --no-agent so hermes runs the script directly
+# and never puts a model in the delivery path.
 CRON_JOBS = [
     {
         "name": "caduceus-morning-brief",
         "schedule": "0 7 * * *",
-        "prompt": ("Run the caduceus-council skill's morning-brief procedure: "
-                   "run `cad dashboard`, read ~/.caduceus/runs for unsettled "
-                   "council runs, check `cad ledger runs`, then produce a "
-                   "5-line brief: unsettled decisions, guard blocks in the last "
-                   "24h, and the single most important thing to push today. "
-                   "DELIVERY IS THE POINT: replace the '## Caduceus morning "
-                   "brief' section of ~/CLAUDE-PENDING-ACTIONS.md with the "
-                   "brief (create file or section if missing, keep the rest "
-                   "of the file intact, date the heading). That file is "
-                   "surfaced to the operator at every session start; a brief "
-                   "that only lands in this cron session log reaches no one - "
-                   "that failure ran silently for a week once (2026-08-26)."),
+        "script": "caduceus-morning-brief.sh",
+        "argv": "brief --write",
     },
     {
         "name": "caduceus-weekly-ledger",
         "schedule": "0 8 * * 1",
-        "prompt": ("Run `cad ledger show` and summarize seat believability "
-                   "movement over the past week in 5 lines. Flag any seat "
-                   "whose track record says its model should be up- or "
-                   "down-graded, with the cost math. DELIVERY IS THE POINT: "
-                   "replace the '## Caduceus weekly ledger' section of "
-                   "~/CLAUDE-PENDING-ACTIONS.md with the summary (create "
-                   "file/section if missing, keep the rest intact, date the "
-                   "heading) - output that stays in this session log reaches "
-                   "no one."),
+        "script": "caduceus-weekly-ledger.sh",
+        "argv": "brief --weekly --write",
     },
 ]
 
 
 def install_cron(log: List[str]) -> None:
+    cad = shutil.which("cad") or "cad"
+    scripts_dir = config.hermes_home() / "scripts"
+    scripts_dir.mkdir(parents=True, exist_ok=True)
     for job in CRON_JOBS:
+        script_path = scripts_dir / job["script"]
+        script_path.write_text(
+            "#!/bin/bash\n"
+            "# caduceus: written by `cad init --cron`. The script IS the "
+            "cron job (--no-agent).\n"
+            f'exec "{cad}" {job["argv"]}\n'
+        )
+        os.chmod(script_path, 0o755)
+
         code, out = run_hermes([
-            "cron", "create", job["schedule"], job["prompt"],
+            "cron", "create", job["schedule"],
             "--name", job["name"],
+            "--script", job["script"],
+            "--no-agent",
+            "--deliver", "local",
         ])
         if code == 0:
-            log.append(f"[+] cron '{job['name']}' registered")
+            log.append(f"[+] cron '{job['name']}' registered ({script_path})")
         else:
             low = out.lower()
             if "exist" in low or "duplicate" in low:

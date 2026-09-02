@@ -88,7 +88,7 @@ class Ledger:
         return oid
 
     def register_run(self, run_id: str, domain: str, question: str,
-                     seats: List[str], memo_path: str) -> None:
+                     seats: List[str], memo_path: str = "") -> None:
         self.conn.execute(
             "INSERT OR REPLACE INTO council_runs "
             "(run_id, ts, domain, question, seats, memo_path, settled) "

@@ -8,7 +8,7 @@ import sys
 import webbrowser
 from pathlib import Path
 
-from . import config, dashboard, doctor, guard, models, seatsetup, telegram, budgets
+from . import brief, config, dashboard, doctor, guard, models, seatsetup, telegram, budgets
 from .config import SEATS, seat_list, heterogeneity_warnings
 from .council import Council, extract_json
 from .hermes import MockTransport, OneshotTransport
@@ -50,6 +50,19 @@ def cmd_doctor(args):
     rows = doctor.checks()
     _print(doctor.render(rows))
     raise SystemExit(doctor.exit_code(rows))
+
+
+def cmd_brief(args):
+    facts = brief.gather()
+    heading = brief.WEEKLY_HEADING if args.weekly else brief.MORNING_HEADING
+    section = brief.render_weekly(facts) if args.weekly else brief.render_morning(facts)
+    # stdout is what hermes actually delivers when the cron runs this with
+    # --no-agent; always print, --write is an additional side effect, not
+    # a substitute for the stdout delivery.
+    _print(section)
+    if args.write:
+        path = brief.write(section, heading)
+        _print(f"[+] written to {path}")
 
 
 def cmd_council_ask(args):
@@ -634,6 +647,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("doctor", help="verify the engine end to end")
     s.set_defaults(fn=cmd_doctor)
+
+    s = sub.add_parser("brief", help="operator brief: open loops, dead jobs - "
+                                     "deterministic, no model")
+    s.add_argument("--weekly", action="store_true", help="weekly ledger summary instead of morning brief")
+    s.add_argument("--write", action="store_true", help="also write the section into CLAUDE-PENDING-ACTIONS.md")
+    s.set_defaults(fn=cmd_brief)
 
     c = sub.add_parser("council", help="deliberation")
     csub = c.add_subparsers(dest="ccmd", required=True)
