@@ -306,7 +306,10 @@ def value_report(ledger) -> List[Dict]:
     rows = ledger.conn.execute(
         "SELECT seat, COALESCE(NULLIF(model,''),'(unattributed)') model, "
         "SUM(result='win') w, SUM(result='mixed') m, SUM(result='loss') l, "
-        "COUNT(*) n FROM outcomes WHERE result!='pending' "
+        # scored rows only: a voided row was corrected by resettle, an
+        # unexecuted one is advice nobody tried - neither is an outcome
+        "(SUM(result='win')+SUM(result='mixed')+SUM(result='loss')) n "
+        "FROM outcomes WHERE result NOT IN ('pending','unexecuted') AND voided=0 "
         "GROUP BY seat, model ORDER BY seat, n DESC"
     ).fetchall()
     spend: Dict[str, float] = {}

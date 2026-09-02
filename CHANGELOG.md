@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.3.5 — 2026-09-01
+The ledger was scoring the operator's non-execution as the seats' failure.
+4 of the 8 losses recorded 08-26..08-27 carried "never executed" notes: the
+council's advice was never tried, and the ledger recorded that as the seat
+being wrong. FINISHER sat at 0.261 (0/0/2) built entirely from untried advice
+on runs where it was not even the lead — and those weights pick every future
+council's lead. `followup.py` (#5) separates "not tried" from "tried and
+wrong" going forward; the ledger could not express it.
+- New `unexecuted` outcome: recorded per seat and run, closes the run, and
+  carries ZERO weight in believability. `cad ledger settle … --unexecuted
+  <seat>`. Shown as the `u` column in `cad ledger show` and the weekly brief.
+- New `cad ledger resettle <run> …`: voids every prior outcome for the run
+  (new `voided` column — history is kept, never deleted) and settles it again.
+- Schema migration: SQLite cannot ALTER a CHECK, so the first open rebuilds
+  `outcomes` in one transaction (rename → recreate → copy → drop), keeping
+  every row byte-for-byte; idempotent on re-open. Tested against a
+  legacy-constraint DB, and the test proven able to fail (a mutant that skips
+  the rebuild turns it red).
+- `n` in `Ledger.table()` now counts scored rows only (w+m+l).
+- 7 new tests (143 total). Live: the four never-executed losses re-settled as
+  `unexecuted` (backup at `~/.caduceus/ledger.db.bak-20260901-pre-unexecuted`).
+
 ## 0.3.4 — 2026-09-01
 The 0.3.3 alerting fix was half-working, and its own health check could not
 tell. The LLM-driven morning-brief cron had NEVER once written its

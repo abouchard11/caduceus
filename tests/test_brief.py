@@ -102,3 +102,14 @@ def test_weekly_brief_carries_ledger_table(tmp_path, monkeypatch):
     text = brief.render_weekly(brief.gather(now=now), now=now)
     assert text.startswith("## Caduceus weekly ledger (2026-09-01)")
     assert "recon" in text and "strategy" in text
+
+
+def test_weekly_ledger_shows_unexecuted_column(tmp_path, monkeypatch):
+    led = Ledger()
+    led.register_run("20260901-000000-bbbbbb", "implementation", "q", ["forge"])
+    led.settle("20260901-000000-bbbbbb", [], [], [], unexecuted=["forge"])
+    led.close()
+    now = dt.datetime(2026, 9, 1, 8, 0)
+    text = brief.render_weekly(brief.gather(now=now), now=now)
+    assert "| u |" in text
+    assert "| forge | implementation | 0 | 0 | 0 | 1 |" in text

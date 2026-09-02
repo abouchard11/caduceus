@@ -106,7 +106,7 @@ def checks() -> List[Tuple[str, str, str]]:
     try:
         from .ledger import Ledger
         led = Ledger()
-        n = led.conn.execute("SELECT COUNT(*) FROM outcomes").fetchone()[0]
+        n = led.conn.execute("SELECT COUNT(*) FROM outcomes WHERE voided=0").fetchone()[0]
         runs = led.conn.execute("SELECT COUNT(*) FROM council_runs WHERE settled=0").fetchone()[0]
         led.close()
         msg = f"{n} outcomes recorded, {runs} unsettled runs"

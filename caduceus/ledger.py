@@ -30,10 +30,11 @@ CREATE TABLE IF NOT EXISTS outcomes (
     ts REAL NOT NULL,
     seat TEXT NOT NULL,
     domain TEXT NOT NULL,
-    result TEXT NOT NULL CHECK(result IN ('win','mixed','loss','pending')),
+    result TEXT NOT NULL CHECK(result IN ('win','mixed','loss','pending','unexecuted')),
     task_ref TEXT,
     note TEXT,
-    model TEXT DEFAULT ''
+    model TEXT DEFAULT '',
+    voided INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_outcomes_seat ON outcomes(seat, domain);
 CREATE TABLE IF NOT EXISTS council_runs (
@@ -66,16 +67,59 @@ class Ledger:
         self.conn.commit()
 
     def _migrate(self) -> None:
-        """v0.1 databases lack the model-attribution column."""
+        """v0.1 databases lack the model-attribution column.
+
+        v0.3.5 (2026-09-01): 4 of the 8 losses recorded 08-26..08-27 carried
+        "never executed" notes - the operator did not act on the advice, and
+        the ledger scored that as the SEAT being wrong. FINISHER sat at 0.261
+        (0/0/2) built entirely from advice nobody tried, on runs where it was
+        not even the lead - and those weights pick every future council's
+        lead. This migration (a) adds `voided`, so a wrongly-scored row can be
+        corrected without deleting history, and (b) rebuilds the CHECK
+        constraint to admit an 'unexecuted' result that records non-execution
+        WITHOUT moving believability. SQLite can't ALTER a CHECK, so the
+        rebuild renames the table, recreates it from SCHEMA, and copies rows
+        across inside one transaction. Idempotent: a live table already
+        admitting 'unexecuted' is left alone.
+        """
         cols = {r[1] for r in self.conn.execute("PRAGMA table_info(outcomes)")}
         if "model" not in cols:
             self.conn.execute("ALTER TABLE outcomes ADD COLUMN model TEXT DEFAULT ''")
+        if "voided" not in cols:
+            self.conn.execute(
+                "ALTER TABLE outcomes ADD COLUMN voided INTEGER NOT NULL DEFAULT 0")
+
+        ddl_row = self.conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='outcomes'"
+        ).fetchone()
+        ddl = ddl_row[0] if ddl_row else ""
+        if "unexecuted" in ddl:
+            return  # already rebuilt - nothing to do
+
+        self.conn.executescript(
+            "BEGIN;"
+            # an aborted earlier attempt can leave the scratch table behind;
+            # without this every future open dies on the RENAME below
+            "DROP TABLE IF EXISTS outcomes_legacy;"
+            "DROP INDEX IF EXISTS idx_outcomes_seat;"
+            "ALTER TABLE outcomes RENAME TO outcomes_legacy;"
+            + SCHEMA +
+            "INSERT INTO outcomes (id, ts, seat, domain, result, task_ref, note, model, voided) "
+            "SELECT id, ts, seat, domain, result, task_ref, COALESCE(note,''), "
+            "COALESCE(model,''), COALESCE(voided,0) FROM outcomes_legacy;"
+            "DROP TABLE outcomes_legacy;"
+            "COMMIT;"
+        )
 
     # ------------------------------------------------------------ writes
 
     def record(self, seat: str, domain: str, result: str,
-               task_ref: str = "", note: str = "", model: str = "") -> str:
-        if result not in ("win", "mixed", "loss", "pending"):
+               task_ref: str = "", note: str = "", model: str = "",
+               commit: bool = True) -> str:
+        # 'unexecuted' records that the operator never acted on the advice -
+        # distinct from 'loss', which means the advice was tried and wrong.
+        # See _migrate() for why that distinction earned its own result.
+        if result not in ("win", "mixed", "loss", "pending", "unexecuted"):
             raise ValueError(f"bad result '{result}'")
         oid = uuid.uuid4().hex[:12]
         self.conn.execute(
@@ -84,7 +128,8 @@ class Ledger:
             (oid, time.time(), seat.lower(), domain.lower(), result, task_ref,
              note, model),
         )
-        self.conn.commit()
+        if commit:
+            self.conn.commit()
         return oid
 
     def register_run(self, run_id: str, domain: str, question: str,
@@ -98,13 +143,17 @@ class Ledger:
         self.conn.commit()
 
     def settle(self, run_id: str, winners: List[str], losers: List[str],
-               mixed: List[str], note: str = "",
-               models: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+               mixed: List[str], unexecuted: Optional[List[str]] = None,
+               note: str = "",
+               models: Optional[Dict[str, str]] = None,
+               commit: bool = True) -> Dict[str, str]:
         """Human (or verifier gate) judges how a council's advice worked out.
 
         `models` maps seat -> model id that actually sat in the seat for this
         run, so outcomes are attributed to the model that earned them even
-        after a recast."""
+        after a recast. `unexecuted` marks seats whose advice was never
+        acted on - recorded for the audit trail but never scored (see
+        _weighted())."""
         row = self.conn.execute(
             "SELECT domain FROM council_runs WHERE run_id=?", (run_id,)
         ).fetchone()
@@ -112,19 +161,51 @@ class Ledger:
             raise SystemExit(f"unknown run_id '{run_id}' (see: cad ledger runs)")
         domain = row[0]
         models = models or {}
+        unexecuted = unexecuted or []
         out = {}
         for seat in winners:
             out[seat] = self.record(seat, domain, "win", run_id, note,
-                                    model=models.get(seat, ""))
+                                    model=models.get(seat, ""), commit=False)
         for seat in mixed:
             out[seat] = self.record(seat, domain, "mixed", run_id, note,
-                                    model=models.get(seat, ""))
+                                    model=models.get(seat, ""), commit=False)
         for seat in losers:
             out[seat] = self.record(seat, domain, "loss", run_id, note,
-                                    model=models.get(seat, ""))
+                                    model=models.get(seat, ""), commit=False)
+        for seat in unexecuted:
+            out[seat] = self.record(seat, domain, "unexecuted", run_id, note,
+                                    model=models.get(seat, ""), commit=False)
         self.conn.execute(
             "UPDATE council_runs SET settled=1 WHERE run_id=?", (run_id,)
         )
+        if commit:
+            self.conn.commit()
+        return out
+
+    def resettle(self, run_id: str, winners: List[str], losers: List[str],
+                 mixed: List[str], unexecuted: Optional[List[str]] = None,
+                 note: str = "", models: Optional[Dict[str, str]] = None
+                 ) -> Dict[str, str]:
+        """Correct a run that was already settled wrong - void the prior
+        outcomes (never delete: the ledger is an audit instrument) and
+        settle it again, in ONE transaction: a crash between the void and
+        the re-record must roll back to the pre-resettle state, never leave
+        a run with its evidence voided and nothing recorded.
+
+        Contract: voids EVERY non-voided row carrying this run_id as
+        task_ref - wins included, and any row hand-written with
+        `cad ledger record --ref <run_id>`. On a run never settled it behaves
+        exactly like settle(). Raises SystemExit for an unknown run_id."""
+        row = self.conn.execute(
+            "SELECT domain FROM council_runs WHERE run_id=?", (run_id,)
+        ).fetchone()
+        if not row:
+            raise SystemExit(f"unknown run_id '{run_id}' (see: cad ledger runs)")
+        self.conn.execute(
+            "UPDATE outcomes SET voided=1 WHERE task_ref=? AND voided=0", (run_id,)
+        )
+        out = self.settle(run_id, winners, losers, mixed, unexecuted=unexecuted,
+                          note=note, models=models, commit=False)
         self.conn.commit()
         return out
 
@@ -134,7 +215,7 @@ class Ledger:
         now = time.time()
         num, den = 0.0, 0.0
         for ts, result in rows:
-            if result == "pending":
+            if result in ("pending", "unexecuted"):
                 continue
             age_days = max(0.0, (now - ts) / 86400.0)
             w = math.pow(0.5, age_days / HALF_LIFE_DAYS)
@@ -145,7 +226,7 @@ class Ledger:
     def believability(self, seat: str, domain: str) -> Believability:
         seat, domain = seat.lower(), domain.lower()
         rows = self.conn.execute(
-            "SELECT ts, result FROM outcomes WHERE seat=? AND domain=?",
+            "SELECT ts, result FROM outcomes WHERE seat=? AND domain=? AND voided=0",
             (seat, domain),
         ).fetchall()
         num, den = self._weighted(rows)
@@ -154,7 +235,7 @@ class Ledger:
             return Believability(seat, domain, score, den, "domain")
         # fallback: seat-global
         rows = self.conn.execute(
-            "SELECT ts, result FROM outcomes WHERE seat=?", (seat,)
+            "SELECT ts, result FROM outcomes WHERE seat=? AND voided=0", (seat,)
         ).fetchall()
         num, den = self._weighted(rows)
         if den > 0.0:
@@ -164,17 +245,18 @@ class Ledger:
 
     def table(self) -> List[Dict]:
         rows = self.conn.execute(
-            "SELECT seat, domain, COUNT(*) n, "
-            "SUM(result='win') w, SUM(result='mixed') m, SUM(result='loss') l "
-            "FROM outcomes WHERE result!='pending' "
-            "GROUP BY seat, domain ORDER BY seat, n DESC"
+            "SELECT seat, domain, "
+            "SUM(result='win') w, SUM(result='mixed') m, SUM(result='loss') l, "
+            "SUM(result='unexecuted') u "
+            "FROM outcomes WHERE result!='pending' AND voided=0 "
+            "GROUP BY seat, domain ORDER BY seat, (w + m + l) DESC"
         ).fetchall()
         out = []
-        for seat, domain, n, w, m, l in rows:
+        for seat, domain, w, m, l, u in rows:
             b = self.believability(seat, domain)
             out.append({
-                "seat": seat, "domain": domain, "n": n,
-                "win": w or 0, "mixed": m or 0, "loss": l or 0,
+                "seat": seat, "domain": domain, "n": (w or 0) + (m or 0) + (l or 0),
+                "win": w or 0, "mixed": m or 0, "loss": l or 0, "unexecuted": u or 0,
                 "believability": round(b.score, 3), "basis": b.basis,
             })
         return out

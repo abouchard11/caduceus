@@ -235,11 +235,12 @@ def render_weekly(facts: Dict, now: Optional[dt.datetime] = None) -> str:
     if not ledger_rows:
         lines.append("No outcomes recorded yet.")
     else:
-        lines.append("| seat | domain | w | m | l | believability |")
-        lines.append("| --- | --- | --- | --- | --- | --- |")
+        lines.append("| seat | domain | w | m | l | u | believability |")
+        lines.append("| --- | --- | --- | --- | --- | --- | --- |")
         for row in ledger_rows:
             lines.append(f"| {row['seat']} | {row['domain']} | {row['win']} | "
-                         f"{row['mixed']} | {row['loss']} | {row['believability']} |")
+                         f"{row['mixed']} | {row['loss']} | {row['unexecuted']} | "
+                         f"{row['believability']} |")
 
     lines.append("")
     lines.append(f"Unsettled runs: {len(unsettled)}")
