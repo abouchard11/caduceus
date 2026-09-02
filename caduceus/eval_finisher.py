@@ -404,15 +404,21 @@ def call_openrouter(model: str, messages: List[Dict], key: str,
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read().decode())
     except urllib.error.HTTPError as e:
-        detail = e.read().decode(errors="replace")
-        raise RuntimeError(f"OpenRouter HTTP {e.code} for {model}: {detail}") from e
-
+        detail = e.read().decode(errors="replace")[:500]
+        # a 429/5xx on ONE call must not kill the other 359: record it as a
+        # call error and let the loop continue (the first sweep died on a
+        # single bad reply 44 minutes in, losing everything before it)
+        return "", {"error": {"http_status": e.code, "body": detail}, "cost": None}
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        return "", {"error": {"transport": str(e)[:300]}, "cost": None}
+    if not isinstance(data, dict) or "choices" not in data:
+        # OpenRouter returns error objects under HTTP 200 for provider
+        # failures and rate limits - the exact KeyError that killed sweep 1
+        err = data.get("error") if isinstance(data, dict) else data
+        return "", {"error": err or {"unexpected": str(data)[:300]}, "cost": None}
     text = data["choices"][0]["message"]["content"]
-    usage = data.get("usage", {}) or {}
+    usage = data.get("usage") or {}
     return text, usage
-
-
-# ---------------------------------------------------------------- decision rule
 
 def decide(summary: Dict) -> str:
     """Apply the pre-registered decision rule (design doc §7).
@@ -463,7 +469,8 @@ def decide(summary: Dict) -> str:
 # ---------------------------------------------------------------- run
 
 def run(items_dir, key_path, candidates: List[Dict], passes: int, dry_run: bool,
-        max_usd: float, out_dir, soul_path, sleep_s: float = 0.0) -> Dict:
+        max_usd: float, out_dir, soul_path, sleep_s: float = 0.0,
+        resume=None) -> Dict:
     """Validate -> estimate -> (stop if dry-run or over budget) -> call ->
     score -> write report. See docs/finisher-eval-design.md §8.
 
@@ -500,42 +507,63 @@ def run(items_dir, key_path, candidates: List[Dict], passes: int, dry_run: bool,
 
     results: List[Dict] = []
     per_candidate_pass_scores: Dict[str, List[List[Dict]]] = {}
+    errors: Dict[str, int] = {}
     actual_spend = 0.0
+
+    # every call lands in a JSONL the moment it returns, so a crash loses at
+    # most one call, and a re-run with --resume re-uses what was already paid
+    # for instead of spending it again (sweep 1 died at 44 minutes with
+    # nothing on disk)
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    prior: Dict[tuple, Dict] = {}
+    if resume:
+        for line in Path(resume).read_text().splitlines():
+            if line.strip():
+                rec = json.loads(line)
+                prior[(rec["model"], rec["pass"], rec["item_id"])] = rec
+    calls_path = out_dir / f"finisher-{stamp}.calls.jsonl"
+    calls_fh = open(calls_path, "a")
 
     for cand in candidates:
         model = cand["model"]
         per_candidate_pass_scores[model] = []
+        errors[model] = 0
         per_call_estimate = estimate["per_candidate"][model]["cost_usd"] / max(len(items) * passes, 1)
 
         for pass_idx in range(passes):
             pass_scores: List[Dict] = []
             for item_id, text in items.items():
-                messages = build_messages(text, soul_text)
-                t0 = time.time()
-                raw_text, usage = call_openrouter(model, messages, key_secret)
-                latency_s = time.time() - t0
+                rec = prior.get((model, pass_idx, item_id))
+                if rec is None:
+                    messages = build_messages(text, soul_text)
+                    t0 = time.time()
+                    raw_text, usage = call_openrouter(model, messages, key_secret)
+                    latency_s = time.time() - t0
+                    call_error = bool(usage.get("error"))
+                    findings, parse_error = ([], True) if call_error else parse_findings(raw_text)
+                    key_entry = key.get(item_id, {"seeded": False, "defects": []})
+                    item_score = None if call_error else score(item_id, findings, key_entry)
+                    call_cost = usage.get("cost")
+                    if call_cost is None:
+                        call_cost = 0.0 if call_error else per_call_estimate
+                    rec = {
+                        "model": model, "pass": pass_idx, "item_id": item_id,
+                        "raw": raw_text, "findings": findings, "parse_error": parse_error,
+                        "call_error": call_error, "score": item_score, "usage": usage,
+                        "latency_s": latency_s, "cost": float(call_cost),
+                    }
+                    calls_fh.write(json.dumps(rec) + "\n"); calls_fh.flush()
+                    actual_spend += float(call_cost)
+                else:
+                    calls_fh.write(json.dumps(rec) + "\n"); calls_fh.flush()
 
-                findings, parse_error = parse_findings(raw_text)
-                key_entry = key.get(item_id, {"seeded": False, "defects": []})
-                item_score = score(item_id, findings, key_entry)
-                pass_scores.append(item_score)
-
-                call_cost = usage.get("cost")
-                if call_cost is None:
-                    call_cost = per_call_estimate
-                actual_spend += float(call_cost)
-
-                results.append({
-                    "model": model,
-                    "pass": pass_idx,
-                    "item_id": item_id,
-                    "raw": raw_text,
-                    "findings": findings,
-                    "parse_error": parse_error,
-                    "score": item_score,
-                    "usage": usage,
-                    "latency_s": latency_s,
-                })
+                results.append(rec)
+                if rec["call_error"]:
+                    errors[model] += 1          # not the model's answer: not a miss
+                else:
+                    pass_scores.append(rec["score"])
 
                 if actual_spend > max_usd:
                     raise SystemExit(
@@ -546,6 +574,8 @@ def run(items_dir, key_path, candidates: List[Dict], passes: int, dry_run: bool,
                     time.sleep(sleep_s)
 
             per_candidate_pass_scores[model].append(pass_scores)
+
+    calls_fh.close()
 
     summary_candidates: Dict[str, Dict] = {}
     for cand in candidates:
@@ -558,6 +588,8 @@ def run(items_dir, key_path, candidates: List[Dict], passes: int, dry_run: bool,
             "precision": agg["precision"],
             "fp_rate": agg["fp_rate"],
             "cost_per_pass": estimate["per_candidate"][model]["cost_usd"] / max(passes, 1),
+            "errors": errors.get(model, 0),
+            "scored_items": sum(len(p) for p in per_candidate_pass_scores[model]),
         }
 
     incumbent = next(
@@ -569,7 +601,7 @@ def run(items_dir, key_path, candidates: List[Dict], passes: int, dry_run: bool,
 
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    ts = time.strftime("%Y%m%d-%H%M%S")
+    ts = stamp  # same stamp as the .calls.jsonl so the three files pair up
     out_json_path = out_dir / f"finisher-{ts}.json"
     out_md_path = out_dir / f"finisher-{ts}.md"
 
