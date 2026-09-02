@@ -613,6 +613,7 @@ def cmd_eval_finisher(args):
         items_dir=items_dir, key_path=key_path, candidates=candidates,
         passes=args.passes, dry_run=args.dry_run, max_usd=args.max_usd,
         out_dir=out_dir, soul_path=soul_path,
+        resume=getattr(args, "resume", None),
     )
 
     est = result["estimate"]
@@ -902,6 +903,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--items", help="override items dir (default evals/finisher/items)")
     s.add_argument("--key", help="override answer key (default evals/finisher/answers.json)")
     s.add_argument("--out", help="override output dir (default ~/.caduceus/evals)")
+    s.add_argument("--resume", help="a prior finisher-*.calls.jsonl: reuse its calls, spend only on the rest")
     s.set_defaults(fn=cmd_eval_finisher)
 
     return p

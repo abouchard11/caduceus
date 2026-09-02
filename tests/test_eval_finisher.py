@@ -521,3 +521,92 @@ def test_kind_equality_no_longer_rescues_a_finding_without_keywords():
          "description": "guaranteed validated results", "confidence": 0.9}
     d = dict(A_GUARANTEE, keywords=[["nope"], ["never"]])
     assert not ef.match(f, d)
+
+
+# ------------------------------------------- resilience + resume (2026-09-02)
+# The first full sweep ran 44 minutes, then died on KeyError: 'choices' - one
+# OpenRouter reply that was not a completion - and lost EVERY prior call,
+# because results were only written at the end and the bad payload was never
+# logged. ~$1.50 of calls, gone. A 360-call instrument must survive one bad
+# reply, persist as it goes, and resume without re-spending.
+
+import io, json as _json, urllib.error
+
+
+class _Resp(io.BytesIO):
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+
+
+def test_choicesless_200_becomes_a_recorded_error_not_a_crash(monkeypatch):
+    payload = _json.dumps({"error": {"message": "rate limited", "code": 429}}).encode()
+    monkeypatch.setattr(ef.urllib.request, "urlopen", lambda *a, **k: _Resp(payload))
+    text, usage = ef.call_openrouter("x/y", [{"role": "user", "content": "hi"}], "k")
+    assert text == ""
+    assert usage.get("error") and "rate limited" in _json.dumps(usage["error"])
+    assert usage.get("cost") is None
+
+
+def test_http_error_becomes_a_recorded_error_not_a_crash(monkeypatch):
+    def boom(*a, **k):
+        raise urllib.error.HTTPError("u", 503, "unavailable", {}, io.BytesIO(b'{"error":"down"}'))
+    monkeypatch.setattr(ef.urllib.request, "urlopen", boom)
+    text, usage = ef.call_openrouter("x/y", [{"role": "user", "content": "hi"}], "k")
+    assert text == "" and "503" in _json.dumps(usage["error"])
+
+
+def _tiny_set(tmp_path):
+    items = tmp_path / "items"; items.mkdir()
+    (items / "S-01.md").write_text("alpha anchor-one beta\n")
+    (items / "C-01.md").write_text("nothing here\n")
+    key = {"S-01": {"class": "A", "seeded": True, "defects": [
+                {"id": "d", "kind": "cost-mismatch", "anchor": "anchor-one",
+                 "section": "x", "keywords": [["kw1"], ["kw2"]]}]},
+           "C-01": {"class": "A", "seeded": False, "defects": []}}
+    kp = tmp_path / "answers.json"; kp.write_text(_json.dumps(key))
+    (tmp_path / "SOUL.md").write_text("soul\n")
+    return items, kp, tmp_path / "SOUL.md"
+
+
+def test_run_persists_every_call_and_skips_error_calls_in_scoring(tmp_path, monkeypatch):
+    items, kp, soul = _tiny_set(tmp_path)
+    calls = []
+    def fake(model, messages, key, timeout=120):
+        calls.append(model)
+        if len(calls) == 1:                       # first call: provider error
+            return "", {"error": {"message": "rate limited"}, "cost": None}
+        return '[{"location":"anchor-one","kind":"k","description":"kw1","confidence":1}]', {"cost": 0.001}
+    monkeypatch.setattr(ef, "call_openrouter", fake)
+    monkeypatch.setattr(ef, "openrouter_key", lambda: "k")
+    cands = [{"model": "a/b", "eligible": True, "role": "r"}]
+    out = tmp_path / "out"
+    r = ef.run(items, kp, cands, passes=1, dry_run=False, max_usd=5, out_dir=out, soul_path=soul)
+    jsonl = list(out.glob("*.calls.jsonl"))
+    assert len(jsonl) == 1
+    lines = [_json.loads(l) for l in jsonl[0].read_text().splitlines()]
+    assert len(lines) == 2                                  # both calls persisted
+    assert lines[0]["call_error"] is True and lines[1]["call_error"] is False
+    assert r["summary"]["candidates"]["a/b"]["errors"] == 1
+    # the errored call is NOT scored as a miss - it never reached the model
+    assert r["summary"]["candidates"]["a/b"]["scored_items"] == 1
+
+
+def test_resume_reuses_recorded_calls_and_never_respends(tmp_path, monkeypatch):
+    items, kp, soul = _tiny_set(tmp_path)
+    good = '[{"location":"anchor-one","kind":"k","description":"kw1","confidence":1}]'
+    n = {"calls": 0}
+    def fake(model, messages, key, timeout=120):
+        n["calls"] += 1
+        return good, {"cost": 0.001}
+    monkeypatch.setattr(ef, "call_openrouter", fake)
+    monkeypatch.setattr(ef, "openrouter_key", lambda: "k")
+    cands = [{"model": "a/b", "eligible": True, "role": "r"}]
+    out = tmp_path / "out"
+    ef.run(items, kp, cands, passes=1, dry_run=False, max_usd=5, out_dir=out, soul_path=soul)
+    assert n["calls"] == 2
+    prior = next(out.glob("*.calls.jsonl"))
+    n["calls"] = 0
+    r = ef.run(items, kp, cands, passes=1, dry_run=False, max_usd=5, out_dir=out, soul_path=soul,
+               resume=prior)
+    assert n["calls"] == 0                                   # nothing re-spent
+    assert r["summary"]["candidates"]["a/b"]["recall"]["mean"] == 1.0   # prior results still count
