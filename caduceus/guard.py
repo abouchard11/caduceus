@@ -9,6 +9,10 @@ Severity model:
   HIGH     -> blocked unless a valid two-person approval token exists.
   WARN     -> allowed, logged, reason annotated.
 
+Third-party repositories (CRITICAL, not a pattern): a push, or a GitHub write
+through `gh` or the REST API, aimed at a repository the operator does not own
+is blocked. See `third_party_violation`.
+
 Two-person rule: `cad approve grant -- <command>` writes a short-TTL token
 bound to the normalized command hash. The second "person" should be a human
 or a DIFFERENT model family seat (FINISHER reviews FORGE's request).
@@ -19,6 +23,8 @@ import hashlib
 import json
 import os
 import re
+import shlex
+import subprocess
 import sys
 import time
 from dataclasses import dataclass
@@ -91,14 +97,214 @@ def command_hash(cmd: str) -> str:
     return hashlib.sha256(normalize_command(cmd).encode()).hexdigest()[:16]
 
 
-def evaluate(cmd: str) -> Optional[Rule]:
-    """Return the highest-severity matching rule, or None."""
+def evaluate(cmd: str, cwd: Optional[str] = None) -> Optional[Rule]:
+    """Return the highest-severity matching rule, or None.
+
+    `cwd` is the directory the command starts in (the hook payload carries it);
+    the third-party rule needs it to read a clone's remotes.
+    """
     best: Optional[Rule] = None
     for rule in RULES:
         if rule.pattern.search(cmd):
             if best is None or SEVERITY_RANK[rule.severity] > SEVERITY_RANK[best.severity]:
                 best = rule
+    if best is None or best.severity != "CRITICAL":
+        if third_party_violation(cmd, cwd):
+            best = THIRD_PARTY
     return best
+
+
+# ------------------------------------------------- third-party repositories
+#
+# Alex, 2026-10-08: "I do not want Hermes touching stuff like this."
+#
+# On 2026-09-25 a seat squashed and force-pushed the branch behind his pull
+# request in typescript-eslint, and a Hermes session commented on that pull
+# request asking for review. The push used --force-with-lease, which the
+# git-force-push rule exempts on purpose, so nothing here saw it. Other agents
+# added to the same thread, and a maintainer closed the replacement pull
+# request as an AI-policy violation on 2026-10-07.
+#
+# What is blocked: `git push`, and writes through `gh` or the GitHub REST API,
+# when the target is a repository he does not own. A fork of his counts as
+# third-party when the same clone has a remote for somebody else's repository
+# of the same name: pushing to that fork is how an upstream pull request
+# changes. Reading is never blocked, and neither is local work in a clone.
+#
+# Not covered: `gh api graphql` mutations, pushes by SSH host alias, and
+# anything done in a browser. This stops an agent that means well, not one
+# that is trying to get around it.
+
+OWN_GITHUB_OWNERS = ("abouchard11",)
+
+THIRD_PARTY = _r("CRITICAL", "third-party-repo", r"(?!)",
+                 "it writes to a GitHub repository Alex does not own")
+
+_GIT_GLOBAL_OPTS = r"(?:\s+(?:-C\s+(?:'[^']*'|\"[^\"]*\"|\S+)|-c\s+\S+|--[\w-]+(?:=\S+)?))*"
+_GIT_PUSH = re.compile(r"\bgit(?P<pre>" + _GIT_GLOBAL_OPTS + r")\s+push\b(?P<post>.*)", re.S)
+_GIT_C = re.compile(r"\s-C\s+(?P<path>'[^']*'|\"[^\"]*\"|\S+)")
+_CD = re.compile(r"^(?:builtin\s+)?cd\s+(?:--\s+)?(?P<path>'[^']*'|\"[^\"]*\"|\S+)")
+_GH_WRITE = re.compile(
+    r"\bgh\s+(?:pr\s+(?:create|comment|edit|close|reopen|ready|review|merge|update-branch|lock|unlock)"
+    r"|issue\s+(?:create|comment|edit|close|reopen|delete|lock|unlock|pin|unpin|transfer|develop)"
+    r"|release\s+(?:create|edit|delete|upload))\b")
+_GH_API = re.compile(r"\bgh\s+api\b")
+_WRITE_METHOD = re.compile(r"(?:\s-X\s*|--(?:method|request)[=\s]+)['\"]?(?:POST|PATCH|PUT|DELETE)\b", re.I)
+_READ_METHOD = re.compile(r"(?:\s-X\s*|--(?:method|request)[=\s]+)['\"]?(?:GET|HEAD)\b", re.I)
+_GH_FIELD = re.compile(r"\s(?:-f|-F|--field|--raw-field|--input)\b")
+_CURL_BODY = re.compile(r"\s(?:-d|--data(?:-raw|-binary|-urlencode)?|--json|-F|--form|-T|--upload-file)\b")
+_REPO_FLAG = re.compile(
+    r"(?:\s-R\s*|--repo[=\s]+|\bGH_REPO=)['\"]?(?:https?://github\.com/|git@github\.com:)?"
+    r"(?P<owner>[\w.-]+)/(?P<repo>[\w.-]+)")
+_GITHUB_URL = re.compile(
+    r"(?<!api\.)github\.com[/:](?P<owner>[\w.-]+)/(?P<repo>[\w.-]+?)(?:\.git)?(?=$|[/\s'\"#?])", re.I)
+_API_REPO = re.compile(r"(?:^|[\s'\"/])repos/(?P<owner>[\w.{}:-]+)/(?P<repo>[\w.{}:-]+)")
+_PUSH_VALUE_FLAGS = {"-o", "--push-option", "--repo", "--receive-pack", "--exec"}
+
+
+def _owned(owner: str) -> bool:
+    return owner.lower() in OWN_GITHUB_OWNERS
+
+
+def _segments(cmd: str) -> List[str]:
+    """Split on && || ; | and newlines, outside quotes."""
+    out, buf, quote, i = [], [], None, 0
+    while i < len(cmd):
+        ch = cmd[i]
+        if quote:
+            buf.append(ch)
+            if ch == quote:
+                quote = None
+        elif ch in "'\"":
+            quote = ch
+            buf.append(ch)
+        elif cmd.startswith(("&&", "||"), i):
+            out.append("".join(buf))
+            buf = []
+            i += 1
+        elif ch in ";|\n":
+            out.append("".join(buf))
+            buf = []
+        else:
+            buf.append(ch)
+        i += 1
+    out.append("".join(buf))
+    return [seg.strip().lstrip("({ ").strip() for seg in out if seg.strip()]
+
+
+def _path(base: Optional[str], raw: str) -> Optional[str]:
+    raw = os.path.expanduser(raw.strip("'\""))
+    if raw == "-":
+        return None
+    if os.path.isabs(raw):
+        return raw
+    return os.path.join(base, raw) if base else None
+
+
+def _remotes(directory: Optional[str]) -> Dict[str, Tuple[str, str]]:
+    """GitHub remotes of the clone at `directory`: name -> (owner, repo)."""
+    if not directory or not os.path.isdir(directory):
+        return {}
+    try:
+        res = subprocess.run(["git", "-C", directory, "remote", "-v"],
+                             capture_output=True, text=True, timeout=3)
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    found: Dict[str, Tuple[str, str]] = {}
+    for line in res.stdout.splitlines() if res.returncode == 0 else []:
+        parts = line.split()
+        if len(parts) < 2 or parts[0] in found:
+            continue
+        m = _GITHUB_URL.search(parts[1])
+        if m:
+            found[parts[0]] = (m.group("owner"), m.group("repo"))
+    return found
+
+
+def _foreign_repo_names(remotes: Dict[str, Tuple[str, str]]) -> set:
+    return {repo.lower() for owner, repo in remotes.values() if not _owned(owner)}
+
+
+def _push_hits_third_party(seg: str, cur: Optional[str]) -> bool:
+    m = _GIT_PUSH.search(seg)
+    if not m:
+        return False
+    c = _GIT_C.search(m.group("pre"))
+    directory = _path(cur, c.group("path")) if c else cur
+    try:
+        tokens = shlex.split(m.group("post"))
+    except ValueError:
+        tokens = m.group("post").split()
+    positional, skip = [], False
+    for tok in tokens:
+        if skip:
+            skip = False
+        elif tok in _PUSH_VALUE_FLAGS:
+            skip = True
+        elif not tok.startswith("-"):
+            positional.append(tok)
+    target = positional[0] if positional else None
+    remotes = _remotes(directory)
+    foreign = _foreign_repo_names(remotes)
+    url = _GITHUB_URL.search(target) if target else None
+    if url:
+        return not _owned(url.group("owner")) or url.group("repo").lower() in foreign
+    if not foreign:
+        return False
+    if target is None:
+        return True     # a bare push in a clone with somebody else's remote: name the remote
+    if target not in remotes:
+        return False
+    owner, repo = remotes[target]
+    return not _owned(owner) or repo.lower() in foreign
+
+
+def _gh_hits_third_party(seg: str, cur: Optional[str]) -> bool:
+    is_api = bool(_GH_API.search(seg)) and bool(
+        _WRITE_METHOD.search(seg) or (_GH_FIELD.search(seg) and not _READ_METHOD.search(seg)))
+    is_verb = bool(_GH_WRITE.search(seg))
+    if not (is_api or is_verb):
+        return False
+    named = _REPO_FLAG.search(seg)
+    if not named and is_api:
+        named = _API_REPO.search(seg)
+        if named is None:
+            return False        # not a repository endpoint
+        if re.search(r"[{:]", named.group("owner")):
+            named = None        # {owner}/{repo}: gh fills it in from the clone
+    if not named and is_verb:
+        named = _GITHUB_URL.search(seg)
+    if named:
+        return not _owned(named.group("owner"))
+    return bool(_foreign_repo_names(_remotes(cur)))
+
+
+def _curl_hits_third_party(seg: str) -> bool:
+    if not re.search(r"\bcurl\b", seg) or "api.github.com" not in seg:
+        return False
+    if not (_WRITE_METHOD.search(seg) or _CURL_BODY.search(seg)):
+        return False
+    named = _API_REPO.search(seg)
+    return bool(named) and not _owned(named.group("owner"))
+
+
+def third_party_violation(cmd: str, cwd: Optional[str] = None) -> bool:
+    """True when `cmd` pushes to, or writes through GitHub to, a repository
+    the operator does not own. Follows `cd` through the command."""
+    try:
+        cur = cwd if cwd and os.path.isabs(cwd) else None
+        for seg in _segments(cmd):
+            moved = _CD.match(seg)
+            if moved:
+                cur = _path(cur, moved.group("path"))
+                continue
+            if (_gh_hits_third_party(seg, cur) or _push_hits_third_party(seg, cur)
+                    or _curl_hits_third_party(seg)):
+                return True
+        return False
+    except Exception as exc:    # a parsing bug must not take every seat's shell down
+        _log({"action": "error", "rule": "third-party-repo", "error": repr(exc)[:200]})
+        return False
 
 
 # ---------------------------------------------------------------- approvals
@@ -187,17 +393,37 @@ def _log(event: Dict) -> None:
         pass
 
 
-def decide(payload: Dict) -> Tuple[int, Optional[Dict]]:
+THIRD_PARTY_REASON = (
+    "[caduceus-guard] BLOCKED (third-party-repo): this command writes to a GitHub "
+    "repository Alex does not own. Alex's rule, 2026-10-08: Hermes does not push to, "
+    "comment on, edit or open pull requests or issues in other people's repositories, "
+    "and does not push to his forks that back them. No approval exists for this and "
+    "no other route is acceptable. Stop and tell Alex what you were going to do.")
+
+
+def decide(payload: Dict, only: Optional[str] = None) -> Tuple[int, Optional[Dict]]:
     """Core decision: returns (exit_code, stdout_json|None).
 
     exit 2 + {"decision":"block"} => Hermes blocks the tool call.
     exit 0 + None                 => allowed.
+
+    only="third-party" applies the third-party rule and nothing else: no
+    destructive-command rules, no budget. That is the hook for the operator's
+    own profile, which he drives unguarded by choice (see seatsetup).
     """
     tool_input = payload.get("tool_input") or {}
     session = payload.get("session_id", "")
+    cwd = payload.get("cwd") if isinstance(payload.get("cwd"), str) else None
+    if only == "third-party":
+        for cmd in _extract_commands(tool_input):
+            if third_party_violation(cmd, cwd):
+                _log({"action": "block", "rule": THIRD_PARTY.name, "severity": "CRITICAL",
+                      "cmd": normalize_command(cmd)[:300], "session": session})
+                return 2, {"decision": "block", "reason": THIRD_PARTY_REASON}
+        return 0, None
     verdicts = []
     for cmd in _extract_commands(tool_input):
-        rule = evaluate(cmd)
+        rule = evaluate(cmd, cwd)
         if rule is None:
             continue
         verdicts.append((rule, cmd))
@@ -249,6 +475,8 @@ def decide(payload: Dict) -> Tuple[int, Optional[Dict]]:
     if rule.severity == "CRITICAL":
         _log({"action": "block", "rule": rule.name, "severity": "CRITICAL",
               "cmd": normalize_command(cmd)[:300], "session": session})
+        if rule is THIRD_PARTY:
+            return 2, {"decision": "block", "reason": THIRD_PARTY_REASON}
         return 2, {"decision": "block", "reason":
                    f"[caduceus-guard] BLOCKED ({rule.name}): {rule.why}. "
                    f"No override exists for CRITICAL commands. Find another way."}
@@ -277,13 +505,13 @@ def decide(payload: Dict) -> Tuple[int, Optional[Dict]]:
     return 0, {"context": f"[caduceus-guard] note ({rule.name}): {rule.why}"}
 
 
-def hook_main() -> int:
+def hook_main(only: Optional[str] = None) -> int:
     """stdin: Hermes hook JSON. stdout: decision JSON. Exit 2 blocks."""
     try:
         payload = json.load(sys.stdin)
     except Exception:
         return 0  # malformed input: fail open here; fail_closed in config covers crashes
-    code, out = decide(payload)
+    code, out = decide(payload, only=only)
     if out is not None:
         sys.stdout.write(json.dumps(out))
     return code
