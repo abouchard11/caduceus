@@ -236,3 +236,75 @@ def test_gh_repo_env_names_the_target():
 def test_subshell_and_relative_cd(fork):
     assert blocked(f"(cd {fork} && git push origin feat/x)")
     assert blocked(f"cd {fork.parent} && cd typescript-eslint && git push origin feat/x")
+
+
+# ------------------------------------- how Hermes really runs terminal commands
+#
+# The terminal tool takes an optional absolute `workdir`, and its session
+# directory persists between calls: after `cd repo` in one call, the next call
+# is a bare `git push`. The hook payload's own `cwd` is the Hermes process
+# directory, not the terminal's.
+
+def call(cmd, session="s1", cwd=None, workdir=None, only=None):
+    p = payload(cmd, cwd)
+    p["session_id"] = session
+    if workdir is not None:
+        p["tool_input"]["workdir"] = str(workdir)
+    code, out = guard.decide(p, only=only)
+    return "block" if code == 2 and "third-party" in (out or {}).get("reason", "") else "allow"
+
+
+def test_workdir_names_the_clone(fork, own):
+    assert call("git push origin feat/x", workdir=fork) == "block"
+    assert call("gh pr comment 1 --body x", workdir=fork) == "block"
+    assert call("git push origin main", workdir=own, cwd=fork) == "allow"   # workdir beats the process cwd
+
+
+def test_a_cd_in_one_call_carries_to_the_next(fork):
+    assert call(f"cd {fork}") == "allow"
+    assert call("git status") == "allow"
+    assert call("git push --force-with-lease origin feat/x") == "block"
+    assert call("gh pr comment 12889 --body 'Re-requesting review'") == "block"
+
+
+def test_the_carried_directory_is_per_session(fork):
+    assert call(f"cd {fork} && git status", session="a") == "allow"
+    assert call("git push origin feat/x", session="b") == "allow"       # b never went there
+    assert call("git push origin feat/x", session="a") == "block"
+
+
+def test_leaving_the_clone_clears_it(fork, own):
+    assert call(f"cd {fork}") == "allow"
+    assert call(f"cd {own}") == "allow"
+    assert call("git push origin main") == "allow"
+    assert call(f"cd {fork} && git fetch upstream && cd {own}") == "allow"
+    assert call("git push origin main") == "allow"
+
+
+def test_a_cd_inside_a_subshell_does_not_carry(fork, own):
+    assert call(f"cd {own}") == "allow"
+    assert call(f"(cd {fork} && git status)") == "allow"
+    assert call("git push origin main") == "allow"
+    assert call(f"(cd {fork} && git push origin feat/x)") == "block"    # but it counts inside the subshell
+
+
+def test_workdir_does_not_move_the_session(fork, own):
+    assert call(f"cd {own}") == "allow"
+    assert call("git status", workdir=fork) == "allow"
+    assert call("git push origin main") == "allow"
+
+
+def test_relative_cd_from_the_carried_directory(fork):
+    assert call(f"cd {fork.parent}") == "allow"
+    assert call("cd typescript-eslint") == "allow"
+    assert call("git push") == "block"
+
+
+def test_the_operator_profile_hook_carries_the_directory_too(fork):
+    assert call(f"cd {fork}", only="third-party") == "allow"
+    assert call("git push origin feat/x", only="third-party") == "block"
+
+
+def test_no_session_id_means_nothing_is_carried(fork):
+    assert call(f"cd {fork}", session="") == "allow"
+    assert call("git push origin feat/x", session="") == "allow"

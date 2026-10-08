@@ -143,7 +143,8 @@ THIRD_PARTY = _r("CRITICAL", "third-party-repo", r"(?!)",
 _GIT_GLOBAL_OPTS = r"(?:\s+(?:-C\s+(?:'[^']*'|\"[^\"]*\"|\S+)|-c\s+\S+|--[\w-]+(?:=\S+)?))*"
 _GIT_PUSH = re.compile(r"\bgit(?P<pre>" + _GIT_GLOBAL_OPTS + r")\s+push\b(?P<post>.*)", re.S)
 _GIT_C = re.compile(r"\s-C\s+(?P<path>'[^']*'|\"[^\"]*\"|\S+)")
-_CD = re.compile(r"^(?:builtin\s+)?cd\s+(?:--\s+)?(?P<path>'[^']*'|\"[^\"]*\"|\S+)")
+_CD = re.compile(r"^(?:builtin\s+)?(?:cd|pushd)\s+(?:--\s+)?(?P<path>'[^']*'|\"[^\"]*\"|\S+)")
+_POPD = re.compile(r"^popd\b")
 _GH_WRITE = re.compile(
     r"\bgh\s+(?:pr\s+(?:create|comment|edit|close|reopen|ready|review|merge|update-branch|lock|unlock)"
     r"|issue\s+(?:create|comment|edit|close|reopen|delete|lock|unlock|pin|unpin|transfer|develop)"
@@ -166,9 +167,21 @@ def _owned(owner: str) -> bool:
     return owner.lower() in OWN_GITHUB_OWNERS
 
 
-def _segments(cmd: str) -> List[str]:
-    """Split on && || ; | and newlines, outside quotes."""
-    out, buf, quote, i = [], [], None, 0
+def _segments(cmd: str) -> List[Tuple[str, int]]:
+    """Split on && || ; | and newlines, outside quotes. Each segment comes with
+    the subshell depth it starts at, so a `cd` inside ( ... ) can be scoped."""
+    out: List[Tuple[str, int]] = []
+    buf: List[str] = []
+    quote, depth, seg_depth, started, i = None, 0, 0, False, 0
+
+    def flush():
+        nonlocal started
+        text = "".join(buf).strip().lstrip("{ ").strip()
+        if text:
+            out.append((text, seg_depth))
+        buf.clear()
+        started = False
+
     while i < len(cmd):
         ch = cmd[i]
         if quote:
@@ -177,19 +190,45 @@ def _segments(cmd: str) -> List[str]:
                 quote = None
         elif ch in "'\"":
             quote = ch
+            if not started:
+                seg_depth, started = depth, True
             buf.append(ch)
+        elif ch in "()":
+            depth = depth + 1 if ch == "(" else max(0, depth - 1)
+            if started:
+                buf.append(ch)          # $( ... ) or a call: keep the text whole
         elif cmd.startswith(("&&", "||"), i):
-            out.append("".join(buf))
-            buf = []
+            flush()
             i += 1
         elif ch in ";|\n":
-            out.append("".join(buf))
-            buf = []
+            flush()
         else:
+            if not started and not ch.isspace():
+                seg_depth, started = depth, True
             buf.append(ch)
         i += 1
-    out.append("".join(buf))
-    return [seg.strip().lstrip("({ ").strip() for seg in out if seg.strip()]
+    flush()
+    return out
+
+
+def _walk(cmd: str, start: Optional[str]):
+    """Follow `cd` through `cmd`. Returns (steps, final, moved): each step is a
+    (segment, directory it runs in); `final` is where the top-level shell ends
+    up; `moved` says whether a top-level cd happened at all."""
+    stack: List[Optional[str]] = [start]
+    steps: List[Tuple[str, Optional[str]]] = []
+    moved = False
+    for seg, depth in _segments(cmd):
+        del stack[depth + 1:]
+        while len(stack) <= depth:
+            stack.append(stack[-1])
+        went = _CD.match(seg)
+        if went or _POPD.match(seg):
+            stack[-1] = _path(stack[-1], went.group("path")) if went else None
+            moved = moved or depth == 0
+            continue
+        steps.append((seg, stack[-1]))
+    return steps, stack[0], moved
 
 
 def _path(base: Optional[str], raw: str) -> Optional[str]:
@@ -292,12 +331,8 @@ def third_party_violation(cmd: str, cwd: Optional[str] = None) -> bool:
     """True when `cmd` pushes to, or writes through GitHub to, a repository
     the operator does not own. Follows `cd` through the command."""
     try:
-        cur = cwd if cwd and os.path.isabs(cwd) else None
-        for seg in _segments(cmd):
-            moved = _CD.match(seg)
-            if moved:
-                cur = _path(cur, moved.group("path"))
-                continue
+        start = cwd if cwd and os.path.isabs(cwd) else None
+        for seg, cur in _walk(cmd, start)[0]:
             if (_gh_hits_third_party(seg, cur) or _push_hits_third_party(seg, cur)
                     or _curl_hits_third_party(seg)):
                 return True
@@ -305,6 +340,64 @@ def third_party_violation(cmd: str, cwd: Optional[str] = None) -> bool:
     except Exception as exc:    # a parsing bug must not take every seat's shell down
         _log({"action": "error", "rule": "third-party-repo", "error": repr(exc)[:200]})
         return False
+
+
+# Where a session's terminal is. Hermes keeps the terminal's directory between
+# calls (`cd repo` in one call, a bare `git push` in the next) and holds it in
+# memory, where a hook cannot read it; the payload's `cwd` is the Hermes process
+# directory. So the guard keeps its own record per session, from the `cd`s it
+# sees. A per-command `workdir` never moves the session (same as Hermes).
+
+def _session_dir_file(session: str):
+    d = config.caduceus_home() / "session-cwd"
+    d.mkdir(mode=0o700, parents=True, exist_ok=True)
+    return d / (hashlib.sha256(session.encode()).hexdigest()[:24] + ".txt")
+
+
+def _recall_dir(session: str) -> Optional[str]:
+    if not session:
+        return None
+    try:
+        return _session_dir_file(session).read_text().strip() or None
+    except OSError:
+        return None
+
+
+def _remember_dir(session: str, directory: Optional[str]) -> None:
+    if not session:
+        return
+    try:
+        f = _session_dir_file(session)
+        if directory:
+            f.write_text(directory)
+        else:
+            f.unlink(missing_ok=True)
+        stale = time.time() - 7 * 86400
+        for old in f.parent.iterdir():
+            if old.stat().st_mtime < stale:
+                old.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def _start_dir(tool_input, session: str, cwd: Optional[str]) -> Tuple[Optional[str], bool]:
+    """(directory the command starts in, whether it came from `workdir`)."""
+    workdir = tool_input.get("workdir") if isinstance(tool_input, dict) else None
+    if isinstance(workdir, str) and os.path.isabs(os.path.expanduser(workdir)):
+        return os.path.expanduser(workdir), True
+    return _recall_dir(session) or cwd, False
+
+
+def _track_session_dir(tool_input, session: str, start: Optional[str]) -> None:
+    command = tool_input.get("command") if isinstance(tool_input, dict) else None
+    if not isinstance(command, str):
+        return
+    try:
+        _, final, moved = _walk(command, start if start and os.path.isabs(start) else None)
+    except Exception:
+        return
+    if moved:
+        _remember_dir(session, final)
 
 
 # ---------------------------------------------------------------- approvals
@@ -402,6 +495,18 @@ THIRD_PARTY_REASON = (
 
 
 def decide(payload: Dict, only: Optional[str] = None) -> Tuple[int, Optional[Dict]]:
+    """Decide, then note where the session's terminal ends up (see _recall_dir)."""
+    tool_input = payload.get("tool_input") or {}
+    session = payload.get("session_id", "") or ""
+    cwd = payload.get("cwd") if isinstance(payload.get("cwd"), str) else None
+    start, from_workdir = _start_dir(tool_input, session, cwd)
+    code, out = _decide(payload, only, start)
+    if code == 0 and not from_workdir:
+        _track_session_dir(tool_input, session, start)
+    return code, out
+
+
+def _decide(payload: Dict, only: Optional[str], cwd: Optional[str]) -> Tuple[int, Optional[Dict]]:
     """Core decision: returns (exit_code, stdout_json|None).
 
     exit 2 + {"decision":"block"} => Hermes blocks the tool call.
@@ -413,7 +518,6 @@ def decide(payload: Dict, only: Optional[str] = None) -> Tuple[int, Optional[Dic
     """
     tool_input = payload.get("tool_input") or {}
     session = payload.get("session_id", "")
-    cwd = payload.get("cwd") if isinstance(payload.get("cwd"), str) else None
     if only == "third-party":
         for cmd in _extract_commands(tool_input):
             if third_party_violation(cmd, cwd):
