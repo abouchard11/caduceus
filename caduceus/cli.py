@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import webbrowser
@@ -389,7 +390,7 @@ def cmd_approve_list(args):
 
 def cmd_guard_test(args):
     cmd = " ".join(args.command).strip()
-    rule = guard.evaluate(cmd)
+    rule = guard.evaluate(cmd, os.getcwd())
     if rule is None:
         _print("PASS - no rule matched")
         return
@@ -407,7 +408,7 @@ def cmd_guard_install(args):
 
 
 def cmd_guard_hook(args):
-    raise SystemExit(guard.hook_main())
+    raise SystemExit(guard.hook_main(only=args.only))
 
 
 def cmd_seats_status(args):
@@ -827,6 +828,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--write", action="store_true")
     s.set_defaults(fn=cmd_guard_install)
     s = gsub.add_parser("hook", help="(internal) hermes pre_tool_call entry - reads stdin")
+    s.add_argument("--only", choices=["third-party"], default=None,
+                   help="apply just this rule (the operator's own profile)")
     s.set_defaults(fn=cmd_guard_hook)
 
     se = sub.add_parser("seats", help="seat gateway management")

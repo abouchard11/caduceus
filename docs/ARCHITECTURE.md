@@ -76,6 +76,21 @@ different model family than the requester, by design. WARN = allow + log +
 annotate. Wired as a Hermes `pre_tool_call` hook with `fail_closed: true`:
 if the guard crashes, the tool call is blocked, not waved through.
 
+One rule is not a pattern. **Third-party repositories** (CRITICAL, added
+2026-10-08 on the operator's word: "I do not want Hermes touching stuff like
+this"): `git push`, and writes through `gh` or the GitHub REST API, are blocked
+when the target is a repository the operator does not own. The target comes
+from `--repo`, a URL, or the remotes of the clone the command runs in (the hook
+payload's `cwd`, followed through any `cd`). One of his forks counts as
+third-party when the same clone has a remote for somebody else's repository of
+the same name, because pushing to that fork is how an upstream pull request
+changes. Reading is never blocked. Not covered: `gh api graphql` mutations, SSH
+host aliases, a browser.
+
+The operator's own profile runs no destructive-command guard, by his choice
+(`seatsetup.install_guard_hook`). It runs this one rule alone:
+`cad guard hook --only third-party`.
+
 ## Transports
 
 ApiTransport (per-seat gateway, OpenAI-compatible, session continuity,
