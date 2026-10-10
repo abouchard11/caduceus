@@ -66,6 +66,11 @@ cad ledger show
 
 # status
 cad doctor && cad dashboard --open && cad seats status
+
+# compile: profile -> cast -> USER.md; skills next to each seat's twitch finger
+cad compile --write && cad init                              # after editing seats/PROFILE.json
+cad compile manifest && cad compile propose                  # Jev scores the shelf -> LOADOUT-PROPOSAL.json
+cad compile install && cad eval loadout "QUESTION"           # paired A/B against the kill criterion
 ```
 
 ## Design positions (deliberate, argue with the ledger)

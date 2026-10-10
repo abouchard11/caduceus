@@ -158,16 +158,34 @@ def gather(now: Optional[dt.datetime] = None) -> Dict:
     finally:
         led.close()
 
-    return {
+    facts = {
         "unsettled": unsettled,
         "unexecuted": unexecuted,
         "dead_cron": dead_cron,
         "guard_blocks_24h": guard_blocks_24h,
         "ledger": ledger_rows,
     }
+    facts["compile_clock"] = _compile_clock()
+    return facts
 
 
 # ---------------------------------------------------------------- render
+
+
+def _compile_clock() -> Optional[str]:
+    """One line while a loadout kill-criterion clock runs, else None."""
+    from . import evalpair, loadout
+    from .ledger import Ledger
+    try:
+        if loadout.first_install_ts() is None:
+            return None
+        r = evalpair.report(Ledger())
+        days = int(r["days"]) if r["days"] is not None else 0
+        return (f"day {days}/{evalpair.RULE_DAYS} · B {r['b_wins']} · A {r['a_wins']} · "
+                f"{r['unsettled']} pairs unsettled · {r['verdict']}")
+    except Exception:
+        return None
+
 
 def render_morning(facts: Dict, now: Optional[dt.datetime] = None) -> str:
     now = now or dt.datetime.now()
@@ -177,6 +195,9 @@ def render_morning(facts: Dict, now: Optional[dt.datetime] = None) -> str:
     guard_blocks = facts["guard_blocks_24h"]
 
     lines = [f"{MORNING_HEADING} ({now.date().isoformat()})", ""]
+    if facts.get("compile_clock"):
+        lines.append(f"compile: {facts['compile_clock']}")
+        lines.append("")
 
     if not unsettled and not unexecuted and not dead_cron and not guard_blocks:
         lines.append("Nothing open - no unsettled runs, no unexecuted commitments, "

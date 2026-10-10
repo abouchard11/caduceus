@@ -113,3 +113,14 @@ def test_weekly_ledger_shows_unexecuted_column(tmp_path, monkeypatch):
     text = brief.render_weekly(brief.gather(now=now), now=now)
     assert "| u |" in text
     assert "| forge | implementation | 0 | 0 | 0 | 1 |" in text
+
+
+def test_compile_clock_in_facts_and_morning(tmp_path, monkeypatch):
+    from caduceus import loadout
+    _pending(tmp_path, monkeypatch, OTHER)
+    assert brief.gather()["compile_clock"] is None
+    assert "compile:" not in brief.render_morning(brief.gather())
+    loadout.mark_first_install()
+    facts = brief.gather()
+    assert facts["compile_clock"].startswith("day 0/14")
+    assert "compile: day 0/14" in brief.render_morning(facts)
