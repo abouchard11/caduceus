@@ -10,6 +10,7 @@ from __future__ import annotations
 import fnmatch
 import hashlib
 import json
+import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
@@ -21,6 +22,15 @@ DESCRIPTION_MAX = 300
 DENYLIST_FILE = "DENYLIST.json"
 
 Root = Tuple[str, Path, int]   # (label, path, max_depth of SKILL.md relative to root)
+
+# A skill name is used as a single path component under a seat's skills/
+# directory, and it comes from third-party frontmatter: it must be exactly
+# one safe component (security review 2026-10-10).
+_SAFE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
+
+
+def safe_name(name: str) -> bool:
+    return bool(name) and _SAFE.fullmatch(name) is not None and name not in (".", "..")
 
 
 @dataclass
@@ -150,7 +160,12 @@ def scan(roots: Optional[Sequence[Root]] = None, extra: Iterable[Root] = ()) -> 
             except OSError:
                 continue
             fm = parse_frontmatter(text)
-            name = (fm.get("name") or skill_md.parent.name).strip()
+            name = (fm.get("name") or "").strip()
+            if not safe_name(name):
+                name = skill_md.parent.name
+                if not safe_name(name):
+                    m.shadowed.append((name, str(skill_md)))   # unusable as a component; recorded, not loaded
+                    continue
             desc = " ".join(fm.get("description", "").split())[:DESCRIPTION_MAX]
             entry = Entry(
                 name=name, description=desc, root=label, path=str(skill_md),

@@ -215,3 +215,47 @@ def test_status_and_clock(tmp_path):
     assert loadout.first_install_ts() == t0                      # never moves on its own
     loadout.mark_first_install(ts=123.0, force=True)
     assert loadout.first_install_ts() == 123.0
+
+
+# ---- security review 2026-10-10: names are untrusted path components -------
+
+def test_install_rejects_traversal_names(tmp_path):
+    _profile_dirs()
+    mani = _mani_with(tmp_path, ["r0"])
+    outside = config.hermes_home() / "profiles" / "finisher" / "skills" / "productivity"
+    outside.mkdir(parents=True)
+    (outside / "keep.txt").write_text("x")
+    res = loadout.install(_table({"finisher": {"review": ["../productivity", "r0", ".", "..", "a/b"]}}),
+                          _cast(), mani)
+    assert res["finisher"]["installed"] == ["r0"]
+    assert set(res["finisher"]["missing"]) == {"../productivity", ".", "..", "a/b"}
+    assert (outside / "keep.txt").exists()
+
+
+def test_uninstall_ignores_bad_record_keys(tmp_path):
+    _profile_dirs()
+    pd = config.hermes_home() / "profiles" / "finisher" / "skills"
+    (pd / "loadout").mkdir(parents=True)
+    (pd / "productivity" / "victim").mkdir(parents=True)
+    (pd / "loadout" / loadout.RECORD).write_text(json.dumps(
+        {"installed": {"../productivity/victim": "0" * 64, "..": "0" * 64}}))
+    assert loadout.uninstall() == {"finisher": 0}
+    assert (pd / "productivity" / "victim").is_dir()
+
+
+def test_copy_preserves_symlinks_and_skips_secrets(tmp_path):
+    _profile_dirs()
+    root = tmp_path / "skills"
+    d = root / "cat" / "linky"
+    d.mkdir(parents=True)
+    (d / "SKILL.md").write_text("---\nname: linky\ndescription: d\n---\n")
+    secret = tmp_path / "outside-secret.txt"
+    secret.write_text("TOP")
+    (d / "link.txt").symlink_to(secret)
+    (d / ".env").write_text("KEY=1")
+    (d / "cert.pem").write_text("pem")
+    mani = manifest.scan(roots=[("t", root, 3)])
+    loadout.install(_table({"finisher": {"review": ["linky"]}}), _cast(), mani)
+    dst = config.hermes_home() / "profiles" / "finisher" / "skills" / "loadout" / "linky"
+    assert (dst / "link.txt").is_symlink()
+    assert not (dst / ".env").exists() and not (dst / "cert.pem").exists()

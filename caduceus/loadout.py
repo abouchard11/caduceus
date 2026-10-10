@@ -21,7 +21,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 
 from . import archetypes, config, jev
 from .compile import Cast
-from .manifest import Denylist, Entry, Manifest
+from .manifest import Denylist, Entry, Manifest, safe_name
 
 PROPOSAL_SCHEMA = "caduceus.loadout.v1"
 LEVELS = ["irrelevant", "rarely useful", "sometimes useful", "often useful", "essential"]
@@ -178,6 +178,18 @@ def propose(scores: Scores, cast: Cast, deny: Denylist, per: int = 5) -> dict:
 
 RECORD = ".caduceus-loadout.json"
 INSTALL_DIR = "loadout"
+# Never copied into a seat: a skill directory is third-party content and may
+# carry its author's local state (security review 2026-10-10).
+COPY_IGNORE = (".git", ".env", ".env.*", "*.pem", "*.key", "*.p12", "*.pfx", "node_modules",
+               "__pycache__", ".DS_Store")
+
+
+def _inside(child: Path, parent: Path) -> bool:
+    try:
+        child.resolve().relative_to(parent.resolve())
+        return True
+    except ValueError:
+        return False
 
 
 def state_path() -> Path:
@@ -287,20 +299,25 @@ def install(table: dict, cast: Cast, mani: Manifest, cap: int = 15,
             dest_root.mkdir(parents=True, exist_ok=True)
         record: Dict[str, str] = {}
         for name in names:
-            e = by_name.get(name)
+            e = by_name.get(name) if safe_name(name) else None
             src = Path(e.path).parent if e else None
             if src is None or not src.is_dir() or not (src / "SKILL.md").exists():
                 res["missing"].append(name)
                 continue
             dst = dest_root / name
-            if dst.exists():
-                shutil.rmtree(dst)
-            shutil.copytree(src, dst)
+            if not _inside(dst, dest_root) or dst.resolve().parent != dest_root.resolve():
+                res["missing"].append(name)
+                continue
+            if dst.is_symlink() or dst.exists():
+                shutil.rmtree(dst) if dst.is_dir() and not dst.is_symlink() else dst.unlink()
+            shutil.copytree(src, dst, symlinks=True, ignore=shutil.ignore_patterns(*COPY_IGNORE))
             record[name] = e.sha256
             res["installed"].append(name)
         for stale in prior:
-            if stale not in record and (dest_root / stale).is_dir():
-                shutil.rmtree(dest_root / stale)
+            d = dest_root / stale
+            if (stale not in record and safe_name(stale) and _inside(d, dest_root)
+                    and d.is_dir() and not d.is_symlink()):
+                shutil.rmtree(d)
                 res["removed"].append(stale)
         if record:
             _record_path(seat).write_text(json.dumps({
@@ -335,7 +352,9 @@ def uninstall(log: Optional[List[str]] = None) -> Dict[str, int]:
         n = 0
         for name in rec.get("installed", {}):
             d = root / name
-            if d.is_dir():
+            if not safe_name(name) or not _inside(d, root) or d.resolve().parent != root.resolve():
+                continue   # a tampered record never reaches outside skills/loadout/
+            if d.is_dir() and not d.is_symlink():
                 shutil.rmtree(d)
                 n += 1
         _record_path(seat).unlink()

@@ -116,3 +116,18 @@ def test_save_and_load_roundtrip(tmp_path):
 def test_default_roots_are_four_labels():
     labels = [r[0] for r in manifest.default_roots()]
     assert labels == ["global", "plugins", "hermes", "repo"]
+
+
+def test_unsafe_frontmatter_name_falls_back_to_directory(tmp_path):
+    a = tmp_path / "a"
+    d = a / "cat" / "fine-dir"
+    d.mkdir(parents=True)
+    (d / "SKILL.md").write_text("---\nname: ../../escape\ndescription: d\n---\n")
+    e = manifest.scan(roots=[("a", a, 3)]).entries[0]
+    assert e.name == "fine-dir"
+
+
+def test_safe_name_rules():
+    assert manifest.safe_name("retro") and manifest.safe_name("a.b_c-9")
+    for bad in ["", ".", "..", "../x", "a/b", "a\\b", ".hidden", "x" * 65, "sp ace", "é"]:
+        assert not manifest.safe_name(bad), bad
