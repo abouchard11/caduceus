@@ -112,7 +112,10 @@ def load(path: Path) -> Profile:
     for name, entry in traits.items():
         if not isinstance(entry, dict):
             raise ProfileError(f"traits.{name}: must be an object with 'pct'")
-        conf = float(entry.get("confidence", 1.0))
+        try:
+            conf = float(entry.get("confidence", 1.0))
+        except (TypeError, ValueError):
+            raise ProfileError(f"traits.{name}: confidence must be a number 0-1")
         if not 0.0 <= conf <= 1.0:
             raise ProfileError(f"traits.{name}: confidence must be 0-1, got {conf}")
         if "pct" in entry:

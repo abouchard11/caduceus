@@ -791,8 +791,10 @@ def cmd_compile_propose(args):
                "A hand-written seats/LOADOUT.json always works: cad compile install --table …")
         raise SystemExit(2)
     client = jev.Client()
-    sc = loadout.score_skills(kept, c, client, cache, max_usd=args.max_usd)
-    cache.save()
+    try:
+        sc = loadout.score_skills(kept, c, client, cache, max_usd=args.max_usd)
+    finally:
+        cache.save()
     prop = loadout.propose(sc, c, deny, per=args.per)
     prop["denied"] = sorted(e.name for e in denied)
     out = Path(args.out) if args.out else config.repo_root() / "seats" / "LOADOUT-PROPOSAL.json"
@@ -878,7 +880,8 @@ def _eval_loadout_report():
     _print(f"pairs: {r['pairs']} · B {r['b_wins']} · A {r['a_wins']} · ties {r['ties']} · "
            f"unsettled {r['unsettled']}")
     _print(f"days: {'-' if r['days'] is None else int(r['days'])}/{evalpair.RULE_DAYS}   "
-           f"rule: {r['rule']}")
+           f"late pairs (outside the window): {r['late_pairs']}")
+    _print(f"rule: {r['rule']}")
     for row in r["rows"]:
         _print(f"  {row['pair_id']}  {row['outcome']:<9} {row['question']}")
     _print(f"verdict: {r['verdict']}")
@@ -915,8 +918,12 @@ def cmd_eval_loadout(args):
                               ceiling_usd=budgets.CEILINGS["full_council"]["hard"],
                               session_ids=[f"caduceus-{s.name}-{run_id}" for s in run_seats])
 
-    pr = evalpair.run_pair(args.question, seats, _read_context(args), dry, table, cast, mani,
-                           factory, before_run=before_run)
+    try:
+        pr = evalpair.run_pair(args.question, seats, _read_context(args), dry, table, cast, mani,
+                               factory, before_run=before_run)
+    except evalpair.PairError as e:
+        _print(f"refused: {e}")
+        raise SystemExit(2)
     _print(f"pair:     {pr.pair_id}")
     for arm, r in (("A (no loadout)", pr.a), ("B (loadout)", pr.b)):
         lead = r.winner.seat.upper() if r.winner else "-"

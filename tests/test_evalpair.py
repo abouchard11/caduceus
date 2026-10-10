@@ -46,8 +46,9 @@ def test_pair_restores_state_on_failure(monkeypatch):
     monkeypatch.setattr(evalpair, "_uninstall", lambda *a, **k: seen.append("uninstall"))
     monkeypatch.setattr(evalpair, "_was_installed", lambda: True)
     with pytest.raises(RuntimeError):
-        evalpair.run_pair("q", [SEATS["forge"], SEATS["finisher"]], "", dry_run=True, table=EMPTY,
-                          cast=None, mani=None,
+        evalpair.run_pair("q", [SEATS["forge"], SEATS["finisher"]], "", dry_run=False,
+                          table={"schema": "caduceus.loadout.v1", "seats": {"finisher": {"review": ["x"]}}},
+                          cast=object(), mani=object(),
                           council_factory=lambda: Boom(ledger=Ledger(), transport="mock",
                                                         mock=MockTransport()))
     # uninstall for arm A, install for arm B, and the restore-to-installed in finally
@@ -59,12 +60,12 @@ def test_pair_restores_to_uninstalled(monkeypatch):
     monkeypatch.setattr(evalpair, "_install", lambda *a, **k: seen.append("install"))
     monkeypatch.setattr(evalpair, "_uninstall", lambda *a, **k: seen.append("uninstall"))
     monkeypatch.setattr(evalpair, "_was_installed", lambda: False)
-    evalpair.run_pair("q", [SEATS["forge"], SEATS["finisher"]], "", dry_run=True, table=EMPTY,
+    evalpair.run_pair("q", [SEATS["forge"], SEATS["finisher"]], "", dry_run=False, table=EMPTY,
                       cast=None, mani=None, council_factory=_factory)
     assert seen == ["uninstall", "install", "uninstall"]
 
 
-def _seed_pairs(L, n, b_wins=True):
+def _seed_pairs(L, n, b_wins=True, ts=None):
     for i in range(n):
         L.register_run(f"a{i}", "review", "q", ["forge"], pair_id=f"p{i}", arm="A", lead="forge")
         L.register_run(f"b{i}", "review", "q", ["forge"], pair_id=f"p{i}", arm="B", lead="finisher")
@@ -74,12 +75,16 @@ def _seed_pairs(L, n, b_wins=True):
         else:
             L.settle(f"a{i}", winners=["forge"], losers=[], mixed=[])
             L.settle(f"b{i}", winners=[], losers=["finisher"], mixed=[])
+        if ts is not None:
+            L.conn.execute("UPDATE council_runs SET ts=? WHERE run_id IN (?, ?)", (ts, f"a{i}", f"b{i}"))
+            L.conn.commit()
 
 
 def test_report_rule_pass_and_running():
     L = Ledger()
-    _seed_pairs(L, 3)
-    loadout.mark_first_install(ts=time.time() - 15 * 86400)
+    t0 = time.time() - 15 * 86400
+    _seed_pairs(L, 3, ts=t0 + 86400)          # pairs ran on day 1 of the window
+    loadout.mark_first_install(ts=t0)
     r = evalpair.report(L)
     assert r["pairs"] == 3 and r["b_wins"] == 3 and r["a_wins"] == 0 and r["ties"] == 0
     assert r["verdict"] == "PASS" and r["days"] >= 14
@@ -89,8 +94,9 @@ def test_report_rule_pass_and_running():
 
 def test_report_rule_park():
     L = Ledger()
-    _seed_pairs(L, 3, b_wins=False)
-    loadout.mark_first_install(ts=time.time() - 20 * 86400)
+    t0 = time.time() - 20 * 86400
+    _seed_pairs(L, 3, b_wins=False, ts=t0 + 86400)
+    loadout.mark_first_install(ts=t0)
     r = evalpair.report(L)
     assert r["a_wins"] == 3 and r["verdict"] == "PARK"
 
@@ -112,3 +118,60 @@ def test_report_excludes_dry_pairs():
     L.register_run("a", "review", "q", ["forge"], pair_id="p", arm="A-dry", lead="forge")
     L.register_run("b", "review", "q", ["forge"], pair_id="p", arm="B-dry", lead="forge")
     assert evalpair.report(L)["pairs"] == 0
+
+
+# ---- review fixes 2026-10-10 --------------------------------------------------
+
+def test_dry_run_touches_no_installs_and_no_clock(tmp_path, monkeypatch):
+    seen = []
+    monkeypatch.setattr(evalpair, "_install", lambda *a, **k: seen.append("install"))
+    monkeypatch.setattr(evalpair, "_uninstall", lambda *a, **k: seen.append("uninstall"))
+    evalpair.run_pair("q", [SEATS["forge"], SEATS["finisher"]], "", dry_run=True, table=EMPTY,
+                      cast=None, mani=None, council_factory=_factory)
+    assert seen == [] and loadout.first_install_ts() is None
+
+
+def test_dry_run_with_real_table_never_installs(tmp_path):
+    from caduceus import compile as comp, manifest, profile
+    from pathlib import Path
+    root = tmp_path / "skills"
+    d = root / "cat" / "alpha"
+    d.mkdir(parents=True)
+    (d / "SKILL.md").write_text("---\nname: alpha\ndescription: d\n---\n")
+    mani = manifest.scan(roots=[("t", root, 3)])
+    cast = comp.cast(profile.load(Path(__file__).resolve().parent.parent / "seats" / "PROFILE.json"))
+    (config.hermes_home() / "profiles" / "finisher").mkdir(parents=True)
+    table = {"schema": "caduceus.loadout.v1", "seats": {"finisher": {"review": ["alpha"]}}}
+    evalpair.run_pair("q", [SEATS["forge"], SEATS["finisher"]], "", dry_run=True, table=table,
+                      cast=cast, mani=mani, council_factory=_factory)
+    assert not (config.hermes_home() / "profiles" / "finisher" / "skills").exists()
+    assert loadout.first_install_ts() is None
+
+
+def test_refuses_when_installed_and_cannot_restore(monkeypatch):
+    seen = []
+    monkeypatch.setattr(evalpair, "_install", lambda *a, **k: seen.append("install"))
+    monkeypatch.setattr(evalpair, "_uninstall", lambda *a, **k: seen.append("uninstall"))
+    monkeypatch.setattr(evalpair, "_was_installed", lambda: True)
+    table = {"schema": "caduceus.loadout.v1", "seats": {"finisher": {"review": ["alpha"]}}}
+    with pytest.raises(evalpair.PairError):
+        evalpair.run_pair("q", [SEATS["forge"], SEATS["finisher"]], "", dry_run=False, table=table,
+                          cast=None, mani=None, council_factory=_factory)
+    assert seen == []
+
+
+def test_report_counts_only_pairs_inside_the_window():
+    L = Ledger()
+    t0 = time.time() - 30 * 86400
+    _seed_pairs(L, 3, ts=t0 + 86400)
+    loadout.mark_first_install(ts=t0, force=True)
+    # pair p2 started on day 20: outside the 14-day window
+    L.conn.execute("UPDATE council_runs SET ts=? WHERE run_id IN ('a2','b2')", (t0 + 20 * 86400,))
+    L.conn.commit()
+    r = evalpair.report(L)
+    assert r["pairs"] == 2 and r["b_wins"] == 2 and r["late_pairs"] == 1
+    assert r["verdict"] == "PARK"          # 2 < 3 wins inside the window
+    L.conn.execute("UPDATE council_runs SET ts=? WHERE run_id IN ('a2','b2')", (t0 + 2 * 86400,))
+    L.conn.commit()
+    r = evalpair.report(L)
+    assert r["pairs"] == 3 and r["late_pairs"] == 0 and r["verdict"] == "PASS"

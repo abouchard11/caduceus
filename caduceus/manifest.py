@@ -10,6 +10,7 @@ from __future__ import annotations
 import fnmatch
 import hashlib
 import json
+import os
 import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -131,13 +132,37 @@ def parse_frontmatter(text: str) -> Dict[str, str]:
 
 # ---------------------------------------------------------------- scan
 
+PRUNE_DIRS = {"node_modules", "__pycache__", ".git"}
+
+
 def _category(label: str, rel: Path) -> str:
     parts = rel.parts
     if label == "plugins" and "skills" in parts:
-        k = parts.index("skills")
+        k = parts.index("skills")           # <marketplace>/<plugin>/<version>/skills/<name>
+        if k >= 2:
+            return parts[k - 2]
         if k >= 1:
             return parts[k - 1]
     return parts[0] if len(parts) > 1 else ""
+
+
+def _skill_files(root: Path, max_depth: int):
+    """Every SKILL.md under root within max_depth, following directory
+    symlinks (a third of ~/.claude/skills are links) without looping, and
+    never descending into node_modules, __pycache__, .git or dot-directories."""
+    seen = set()
+    for dirpath, dirs, files in os.walk(root, followlinks=True):
+        real = os.path.realpath(dirpath)
+        if real in seen:
+            dirs[:] = []
+            continue
+        seen.add(real)
+        depth = len(Path(dirpath).relative_to(root).parts)
+        dirs[:] = sorted(d for d in dirs if d not in PRUNE_DIRS and not d.startswith("."))
+        if depth >= max_depth:
+            dirs[:] = []
+        if "SKILL.md" in files and depth <= max_depth:
+            yield Path(dirpath) / "SKILL.md"
 
 
 def scan(roots: Optional[Sequence[Root]] = None, extra: Iterable[Root] = ()) -> Manifest:
@@ -151,10 +176,8 @@ def scan(roots: Optional[Sequence[Root]] = None, extra: Iterable[Root] = ()) -> 
             m.skipped_roots.append(label)
             continue
         count = 0
-        for skill_md in sorted(root.rglob("SKILL.md")):
+        for skill_md in _skill_files(root, max_depth):
             rel = skill_md.relative_to(root)
-            if len(rel.parts) > max_depth + 1:
-                continue
             try:
                 text = skill_md.read_text(encoding="utf-8", errors="replace")
             except OSError:

@@ -131,3 +131,40 @@ def test_safe_name_rules():
     assert manifest.safe_name("retro") and manifest.safe_name("a.b_c-9")
     for bad in ["", ".", "..", "../x", "a/b", "a\\b", ".hidden", "x" * 65, "sp ace", "é"]:
         assert not manifest.safe_name(bad), bad
+
+
+# ---- review fixes 2026-10-10: symlinks, plugin layout, pruning -----------------
+
+def test_symlinked_skill_dir_is_scanned(tmp_path):
+    a = tmp_path / "a"
+    real = tmp_path / "elsewhere" / "real-skill"
+    real.mkdir(parents=True)
+    (real / "SKILL.md").write_text("---\nname: real-skill\ndescription: d\n---\n")
+    (a / "cat").mkdir(parents=True)
+    (a / "cat" / "linked").symlink_to(real, target_is_directory=True)
+    names = {e.name for e in manifest.scan(roots=[("a", a, 3)]).entries}
+    assert names == {"real-skill"}
+
+
+def test_symlink_cycle_terminates(tmp_path):
+    a = tmp_path / "a"
+    (a / "cat").mkdir(parents=True)
+    (a / "cat" / "loop").symlink_to(a, target_is_directory=True)
+    _skill(a, "cat2", "fine", "d")
+    assert {e.name for e in manifest.scan(roots=[("a", a, 6)]).entries} == {"fine"}
+
+
+def test_plugin_layout_category_and_pruning(tmp_path):
+    cache = tmp_path / "cache"
+    good = cache / "mkt" / "plug" / "1.2.3" / "skills" / "good-skill"
+    good.mkdir(parents=True)
+    (good / "SKILL.md").write_text("---\nname: good-skill\ndescription: d\n---\n")
+    nm = cache / "mkt" / "plug" / "1.2.3" / "node_modules" / "dep" / "skills" / "dep-skill"
+    nm.mkdir(parents=True)
+    (nm / "SKILL.md").write_text("---\nname: dep-skill\ndescription: d\n---\n")
+    dot = cache / "mkt" / "plug" / "1.2.3" / ".claude" / "skills" / "dot-skill"
+    dot.mkdir(parents=True)
+    (dot / "SKILL.md").write_text("---\nname: dot-skill\ndescription: d\n---\n")
+    m = manifest.scan(roots=[("plugins", cache, 8)])
+    assert {e.name for e in m.entries} == {"good-skill"}
+    assert m.entries[0].category == "plug"

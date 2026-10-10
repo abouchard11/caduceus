@@ -83,3 +83,10 @@ def test_taxonomy_is_twelve_by_three_plus_five():
     independent = [k for k, v in t.items() if not v]
     assert len(traits) == 12 and all(len(v) == 3 for v in traits.values())
     assert len(independent) == 5
+
+
+def test_non_numeric_confidence_is_profile_error(tmp_path):
+    body = dict(GOOD)
+    body["traits"] = {"Organized": {"pct": 26, "confidence": "high"}}
+    with pytest.raises(profile.ProfileError):
+        profile.load(_write(tmp_path, body))

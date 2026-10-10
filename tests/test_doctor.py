@@ -537,3 +537,12 @@ def test_loadout_row_not_installed_then_clock(tmp_path, monkeypatch):
     loadout.mark_first_install()
     status, detail = _row(doctor.checks(), "loadout")
     assert status == doctor.OK and "day 0/14" in detail and "RUNNING" in detail
+
+
+def test_profile_row_warns_when_a_seat_copy_is_stale(tmp_path, monkeypatch):
+    _repo_copy(tmp_path, monkeypatch)
+    pd = profile_dir("finisher")
+    pd.mkdir(parents=True, exist_ok=True)
+    (pd / "USER.md").write_text("# CADUCEUS PRINCIPAL PROFILE — stale copy\n")
+    status, detail = _row(doctor.checks(), "profile")
+    assert status == doctor.WARN and "cad init" in detail and "finisher" in detail

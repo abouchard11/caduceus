@@ -304,6 +304,14 @@ def _profile_row() -> Tuple[str, str, str]:
     if stale:
         return (WARN, "profile", f"{', '.join(stale)} stale vs PROFILE.json - run "
                                  "`cad compile --write` then `cad init`")
+    repo_user = (config.repo_root() / "seats" / "USER.md").read_text()
+    stale_seats = []
+    for name in SEATS:
+        copy = profile_dir(name) / "USER.md"
+        if copy.exists() and copy.read_text() != repo_user:
+            stale_seats.append(name)
+    if stale_seats:
+        return (WARN, "profile", f"seat copies stale ({', '.join(stale_seats)}) - run `cad init`")
     return (OK, "profile", f"USER.md and CAST.json match PROFILE.json (sha {p.sha256[:12]})")
 
 

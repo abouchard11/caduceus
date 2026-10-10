@@ -23,6 +23,10 @@ RULE_DAYS = 14
 RULE_WINS = 3
 
 
+class PairError(RuntimeError):
+    """The pair cannot run without leaving the seats in a state it cannot restore."""
+
+
 @dataclass
 class PairResult:
     pair_id: str
@@ -50,21 +54,30 @@ def run_pair(question: str, seats: List[Seat], context: str, dry_run: bool, tabl
              before_run: Optional[Callable[[str, List[Seat]], None]] = None,
              quick: bool = False) -> PairResult:
     pair_id = time.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6]
-    suffix = "-dry" if dry_run else ""
+    a_id, b_id = f"{pair_id}-A", f"{pair_id}-B"
+
+    def arm(run_id: str, tag: str):
+        if before_run:
+            before_run(run_id, seats)
+        return council_factory().run(question, seats, context=context, quick=quick,
+                                     run_id=run_id, pair_id=pair_id, arm=tag)
+
+    if dry_run:
+        # A rehearsal: mock transport, excluded from the report, and it never
+        # touches the seats' loadout trees or the kill-criterion clock.
+        return PairResult(pair_id, arm(a_id, "A-dry"), arm(b_id, "B-dry"))
+
     was = _was_installed()
+    can_restore = cast is not None and mani is not None and bool((table or {}).get("seats"))
+    if was and not can_restore:
+        raise PairError("loadouts are installed but cannot be re-installed afterwards "
+                        "(missing manifest, profile or seats/LOADOUT.json): run "
+                        "`cad compile manifest` first, or `cad compile uninstall`")
     try:
         _uninstall()
-        a_id = f"{pair_id}-A"
-        if before_run:
-            before_run(a_id, seats)
-        a = council_factory().run(question, seats, context=context, quick=quick,
-                                  run_id=a_id, pair_id=pair_id, arm="A" + suffix)
+        a = arm(a_id, "A")
         _install(table, cast, mani)
-        b_id = f"{pair_id}-B"
-        if before_run:
-            before_run(b_id, seats)
-        b = council_factory().run(question, seats, context=context, quick=quick,
-                                  run_id=b_id, pair_id=pair_id, arm="B" + suffix)
+        b = arm(b_id, "B")
     finally:
         # Leave the seats the way we found them, whatever happened above.
         if was:
@@ -76,7 +89,14 @@ def run_pair(question: str, seats: List[Seat], context: str, dry_run: bool, tabl
 
 def report(ledger: Ledger, now: Optional[float] = None) -> Dict:
     now = now or time.time()
-    pairs = {pid: v for pid, v in ledger.pairs().items() if "A" in v and "B" in v}
+    t0 = loadout.first_install_ts()
+    deadline = (t0 + RULE_DAYS * 86400.0) if t0 else None
+    all_pairs = {pid: v for pid, v in ledger.pairs().items() if "A" in v and "B" in v}
+    # Pre-registered window: only pairs STARTED within RULE_DAYS of the first
+    # install feed the verdict. Later pairs are reported, never counted.
+    pairs = {pid: v for pid, v in all_pairs.items()
+             if deadline is None or float(v["A"]["ts"]) <= deadline}
+    late = len(all_pairs) - len(pairs)
     b_wins = a_wins = ties = unsettled = 0
     rows: List[Dict] = []
     for pid, v in sorted(pairs.items()):
@@ -97,7 +117,6 @@ def report(ledger: Ledger, now: Optional[float] = None) -> Dict:
             outcome = "tie"
         rows.append({"pair_id": pid, "outcome": outcome, "a": la, "b": lb,
                      "question": a["question"][:80]})
-    t0 = loadout.first_install_ts()
     days = (now - t0) / 86400.0 if t0 else None
     if days is None or days < RULE_DAYS:
         verdict = "RUNNING"
@@ -106,5 +125,7 @@ def report(ledger: Ledger, now: Optional[float] = None) -> Dict:
     else:
         verdict = "PARK"
     return {"pairs": len(pairs), "b_wins": b_wins, "a_wins": a_wins, "ties": ties,
-            "unsettled": unsettled, "days": days, "verdict": verdict, "rows": rows,
-            "rule": f"PASS if B-wins >= {RULE_WINS} and B-wins > A-wins at day {RULE_DAYS}"}
+            "unsettled": unsettled, "late_pairs": late, "days": days, "verdict": verdict,
+            "rows": rows,
+            "rule": (f"PASS if B-wins >= {RULE_WINS} and B-wins > A-wins at day {RULE_DAYS}, "
+                     f"counting pairs started within {RULE_DAYS} days of the first install")}

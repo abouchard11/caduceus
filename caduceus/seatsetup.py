@@ -465,11 +465,16 @@ def install_user_md(seat: Seat, log: List[str]) -> None:
     dst = profile_dir(seat.name) / "USER.md"
     if not src.exists():
         return
-    if dst.exists() and "CADUCEUS PRINCIPAL PROFILE" in dst.read_text():
-        log.append(f"[=] USER.md for '{seat.name}' current")
-        return
+    # USER.md is generated from seats/PROFILE.json (0.4.0): compare content,
+    # never a marker, so a regenerated file reaches the seat on `cad init`.
     if dst.exists():
+        if dst.read_text() == src.read_text():
+            log.append(f"[=] USER.md for '{seat.name}' current")
+            return
         backup(dst)
+        shutil.copy2(src, dst)
+        log.append(f"[+] USER.md updated for '{seat.name}' (previous copy backed up)")
+        return
     shutil.copy2(src, dst)
     log.append(f"[+] USER.md installed for '{seat.name}'")
 

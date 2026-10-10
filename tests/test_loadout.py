@@ -259,3 +259,10 @@ def test_copy_preserves_symlinks_and_skips_secrets(tmp_path):
     dst = config.hermes_home() / "profiles" / "finisher" / "skills" / "loadout" / "linky"
     assert (dst / "link.txt").is_symlink()
     assert not (dst / ".env").exists() and not (dst / "cert.pem").exists()
+
+
+def test_cache_saves_periodically_during_scoring(tmp_path):
+    cache = loadout.Cache(tmp_path / "c.json")
+    loadout.score_skills([_entry(f"good-{i}") for i in range(5)], _cast(), ScoreClient(), cache,
+                         save_every=2)
+    assert (tmp_path / "c.json").exists() and len(json.loads((tmp_path / "c.json").read_text())) >= 4

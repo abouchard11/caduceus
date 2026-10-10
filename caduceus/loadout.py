@@ -114,7 +114,7 @@ def _parse(answers: dict) -> Dict[Tuple[str, str], Tuple[float, float]]:
 
 
 def score_skills(entries: Iterable[Entry], cast: Cast, client, cache: Cache,
-                 max_usd: float = 1.0, dry_run: bool = False) -> Scores:
+                 max_usd: float = 1.0, dry_run: bool = False, save_every: int = 25) -> Scores:
     questions = build_questions(cast)
     sc = Scores()
     for e in entries:
@@ -137,6 +137,8 @@ def score_skills(entries: Iterable[Entry], cast: Cast, client, cache: Cache,
                 continue
             sc.calls += 1
             cache.put(key, answers)
+            if save_every and sc.calls % save_every == 0:
+                cache.save()        # an interrupt never discards paid answers
         else:
             sc.cached += 1
         try:
