@@ -1,3 +1,37 @@
+HANDOFF — state as of 2026-10-10 evening (read this block first; the compile-branch block and the 2026-09-01 state follow)
+
+0.4.0 is on main (PR #19 merged 12725a6; PR #20 merged 64941fb). The launchd executor keeps calling
+the editable install on main; `cad exec run` dry ran clean post-merge; 380 tests green on main.
+Ledger backed up before the merge: ~/.caduceus/ledger.db.bak-0.4.0.
+
+Done today, in order:
+1. `cad init` pushed the generated seats/USER.md into all five seat profiles (previous copies backed up).
+2. TYPESAFE_API_KEY mirrored from ~/.hermes/.env into ~/.caduceus/env (mode 600). Live domain
+   classification verified (source jev). From now on every live council question's text goes to
+   TypeSafe for classification; context files never do; mock/dry runs never call it.
+3. `cad compile manifest`: 763 skills across four roots. `cad compile propose`: 739 Jev calls,
+   $0.20, 0 errors → seats/LOADOUT-PROPOSAL.json. Disposed into seats/LOADOUT.json (12 drops, each
+   with its reason inside the file); the reach ones joined seats/DENYLIST.json.
+4. `cad compile install`: 73 skills across 5 seats (cap 15). Hermes lists them as enabled.
+   THE CLOCK STARTED 2026-10-10. Day 14 = 2026-10-24: `cad eval loadout report`.
+5. First real pair: 20261010-180413-2e5e89 (-A no loadout, lead RECON; -B loadout, lead FINISHER; ≈$0.5).
+   Both arms, independently: the first user is nobody yet. Next action is Alex's and is an
+   external send: a 7-day, $0 demand probe to ~5 named peers who ALREADY hold a PrinciplesYou
+   result ('export your result and I'll cast your agent staff for free, this week'). PASS only on
+   revealed preference: unprompted continuation or referral, or a named commitment tied to a real
+   upcoming task; compliments and a shared PDF do not count. Never serve a stranger's cast before
+   the E2 steerability gate. Settle BOTH arms when the probe reports back.
+6. Settled: 20261010-175508-ac78ec (merge gate, FINISHER+FORGE win) and 20260927-035811-afe300
+   (aw-client#116, unexecuted on written evidence). Seven runs remain open; the sheet with disk
+   evidence and a suggested verdict per run is docs/sessions/2026-10-10-settlement-sheet.md.
+
+ALEX, still yours:
+- Settle the seven open runs from the sheet; settle BOTH arms of every pair; day 14 report.
+- Pre-existing, not touched: `cad doctor` FAILs on the guard hook in your root Hermes config.yaml
+  (the operator's profile must stay unguarded); `cad followup nudge` fails with Telegram unconfigured.
+- Before a compiled council serves anyone but you: Jev steerability probe E2
+  (hq/outputs/jev-usage-outline-2026-09-27-v2.md).
+
 HANDOFF — compile branch, 2026-10-10 (read this block, then the 2026-09-01 state below)
 
 Branch `feat/compile` (worktree `.claude/worktrees/compile`), NOT on main, NOT merged. Main is
@@ -8,7 +42,7 @@ ledger of rulings `docs/sessions/2026-10-10-compile-ledger.md`):
 `cad compile [--write]` · `cad compile manifest|propose|install|uninstall|status` ·
 `cad eval loadout "Q"` / `cad eval loadout report` · doctor rows `profile`, `loadout` · brief clock.
 
-ALEX'S ACTIONS, in order (nothing below is done; the clock has not started):
+ALEX'S ACTIONS as written before the run (superseded by the block above; kept for the record):
 1. Review and ship the PR. The 2026-08-19 USER.md is now generated from seats/PROFILE.json
    (same numbers, same contract block, prose regrouped); read the diff of seats/USER.md once.
 2. Settle the 8 open council runs first (`cad ledger runs`). Decision 17: the loadout
