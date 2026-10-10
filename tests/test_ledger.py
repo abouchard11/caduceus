@@ -234,3 +234,49 @@ def test_cli_settle_and_resettle_accept_unexecuted(capsys):
     led = Ledger()
     assert led.believability("forge", "implementation").basis == "prior"
     led.close()
+
+
+# ---- paired evaluation columns (compile, 2026-10-10) -------------------------
+
+def test_migration_adds_pair_columns(tmp_path):
+    import sqlite3
+    db = tmp_path / "old.db"
+    con = sqlite3.connect(str(db))
+    con.executescript("""CREATE TABLE outcomes (id TEXT PRIMARY KEY, ts REAL NOT NULL, seat TEXT NOT NULL,
+      domain TEXT NOT NULL, result TEXT NOT NULL CHECK(result IN ('win','mixed','loss','pending','unexecuted')),
+      task_ref TEXT, note TEXT, model TEXT DEFAULT '', voided INTEGER NOT NULL DEFAULT 0);
+      CREATE TABLE council_runs (run_id TEXT PRIMARY KEY, ts REAL NOT NULL, domain TEXT NOT NULL,
+      question TEXT NOT NULL, seats TEXT NOT NULL, memo_path TEXT, settled INTEGER NOT NULL DEFAULT 0);
+      INSERT INTO council_runs VALUES ('r1', 1.0, 'review', 'q', 'forge,finisher', '', 0);""")
+    con.commit()
+    con.close()
+    L = Ledger(db)
+    row = L.runs()[0]
+    assert row["run_id"] == "r1" and row["pair_id"] == "" and row["arm"] == "" and row["lead"] == ""
+    L.close()
+    # idempotent: opening again must not try to add the columns twice
+    L2 = Ledger(db)
+    assert L2.runs()[0]["pair_id"] == ""
+    L2.close()
+
+
+def test_pairs_and_lead_outcome(tmp_path):
+    L = Ledger(tmp_path / "l.db")
+    L.register_run("a1", "review", "q", ["forge", "finisher"], pair_id="p1", arm="A", lead="forge")
+    L.register_run("b1", "review", "q", ["forge", "finisher"], pair_id="p1", arm="B", lead="finisher")
+    L.register_run("solo", "review", "q", ["forge"])
+    L.settle("a1", winners=[], losers=["forge"], mixed=[])
+    L.settle("b1", winners=["finisher"], losers=[], mixed=[])
+    pairs = L.pairs()
+    assert set(pairs) == {"p1"} and set(pairs["p1"]) == {"A", "B"}
+    assert pairs["p1"]["A"]["lead"] == "forge" and pairs["p1"]["B"]["settled"] is True
+    assert L.lead_outcome("a1") == "loss" and L.lead_outcome("b1") == "win"
+    assert L.lead_outcome("solo") is None and L.lead_outcome("nope") is None
+
+
+def test_lead_outcome_ignores_voided_rows(tmp_path):
+    L = Ledger(tmp_path / "l.db")
+    L.register_run("b1", "review", "q", ["forge", "finisher"], pair_id="p1", arm="B", lead="finisher")
+    L.settle("b1", winners=["finisher"], losers=[], mixed=[])
+    L.resettle("b1", winners=[], losers=["finisher"], mixed=[])
+    assert L.lead_outcome("b1") == "loss"

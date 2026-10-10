@@ -44,7 +44,10 @@ CREATE TABLE IF NOT EXISTS council_runs (
     question TEXT NOT NULL,
     seats TEXT NOT NULL,
     memo_path TEXT,
-    settled INTEGER NOT NULL DEFAULT 0
+    settled INTEGER NOT NULL DEFAULT 0,
+    pair_id TEXT DEFAULT '',
+    arm TEXT DEFAULT '',
+    lead TEXT DEFAULT ''
 );
 """
 
@@ -82,6 +85,16 @@ class Ledger:
         across inside one transaction. Idempotent: a live table already
         admitting 'unexecuted' is left alone.
         """
+        # v0.4.0 (2026-10-10): paired evaluation (cad eval loadout) tags each
+        # run with the pair it belongs to, which arm it was, and the lead seat
+        # the synthesis picked, so settlement stays per run and the pair
+        # report is derived. Placed before the outcomes early-return below so
+        # an already-rebuilt database still gains these columns.
+        rcols = {r[1] for r in self.conn.execute("PRAGMA table_info(council_runs)")}
+        for col in ("pair_id", "arm", "lead"):
+            if col not in rcols:
+                self.conn.execute(f"ALTER TABLE council_runs ADD COLUMN {col} TEXT DEFAULT ''")
+
         cols = {r[1] for r in self.conn.execute("PRAGMA table_info(outcomes)")}
         if "model" not in cols:
             self.conn.execute("ALTER TABLE outcomes ADD COLUMN model TEXT DEFAULT ''")
@@ -133,12 +146,14 @@ class Ledger:
         return oid
 
     def register_run(self, run_id: str, domain: str, question: str,
-                     seats: List[str], memo_path: str = "") -> None:
+                     seats: List[str], memo_path: str = "",
+                     pair_id: str = "", arm: str = "", lead: str = "") -> None:
         self.conn.execute(
             "INSERT OR REPLACE INTO council_runs "
-            "(run_id, ts, domain, question, seats, memo_path, settled) "
-            "VALUES (?,?,?,?,?,?,0)",
-            (run_id, time.time(), domain, question[:500], ",".join(seats), memo_path),
+            "(run_id, ts, domain, question, seats, memo_path, settled, pair_id, arm, lead) "
+            "VALUES (?,?,?,?,?,?,0,?,?,?)",
+            (run_id, time.time(), domain, question[:500], ",".join(seats), memo_path,
+             pair_id or "", arm or "", (lead or "").lower()),
         )
         self.conn.commit()
 
@@ -261,17 +276,43 @@ class Ledger:
             })
         return out
 
+    _RUN_COLS = "run_id, ts, domain, question, seats, settled, pair_id, arm, lead"
+
+    @staticmethod
+    def _run_row(r) -> Dict:
+        return {"run_id": r[0], "ts": r[1], "domain": r[2], "question": r[3],
+                "seats": r[4], "settled": bool(r[5]), "pair_id": r[6] or "",
+                "arm": r[7] or "", "lead": r[8] or ""}
+
     def runs(self, unsettled_only: bool = True) -> List[Dict]:
-        q = ("SELECT run_id, ts, domain, question, seats, settled "
-             "FROM council_runs ")
+        q = f"SELECT {self._RUN_COLS} FROM council_runs "
         if unsettled_only:
             q += "WHERE settled=0 "
         q += "ORDER BY ts DESC LIMIT 50"
-        return [
-            {"run_id": r[0], "ts": r[1], "domain": r[2],
-             "question": r[3], "seats": r[4], "settled": bool(r[5])}
-            for r in self.conn.execute(q).fetchall()
-        ]
+        return [self._run_row(r) for r in self.conn.execute(q).fetchall()]
+
+    def pairs(self) -> Dict[str, Dict[str, Dict]]:
+        """pair_id -> {arm: run row} for every run registered by a paired
+        evaluation. Arms are whatever was registered ('A', 'B', 'A-dry', ...);
+        the report decides which ones count."""
+        out: Dict[str, Dict[str, Dict]] = {}
+        q = f"SELECT {self._RUN_COLS} FROM council_runs WHERE pair_id != '' ORDER BY ts"
+        for r in self.conn.execute(q).fetchall():
+            row = self._run_row(r)
+            out.setdefault(row["pair_id"], {})[row["arm"]] = row
+        return out
+
+    def lead_outcome(self, run_id: str) -> Optional[str]:
+        """The latest non-voided result recorded for this run's lead seat, or
+        None when the run is unknown, has no lead, or is not settled for it."""
+        row = self.conn.execute(
+            "SELECT lead FROM council_runs WHERE run_id=?", (run_id,)).fetchone()
+        if not row or not row[0]:
+            return None
+        res = self.conn.execute(
+            "SELECT result FROM outcomes WHERE task_ref=? AND seat=? AND voided=0 "
+            "ORDER BY ts DESC LIMIT 1", (run_id, row[0].lower())).fetchone()
+        return res[0] if res else None
 
     def close(self):
         self.conn.close()
