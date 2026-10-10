@@ -10,6 +10,7 @@ import webbrowser
 from pathlib import Path
 
 from . import brief, config, dashboard, doctor, eval_finisher, guard, models, seatsetup, telegram, budgets
+from . import compile as compile_mod, evalpair, jev, loadout, manifest as manifest_mod, profile as profile_mod
 from .config import SEATS, seat_list, heterogeneity_warnings
 from .council import Council, extract_json
 from .hermes import MockTransport, OneshotTransport
@@ -701,6 +702,230 @@ def cmd_plan(args):
 
 # ---------------------------------------------------------------- parser
 
+
+# ---------------------------------------------------------------- compile
+
+def _profile_path() -> Path:
+    return config.repo_root() / "seats" / "PROFILE.json"
+
+
+def _load_profile(args=None):
+    path = Path(args.profile) if getattr(args, "profile", None) else _profile_path()
+    if not path.exists():
+        raise SystemExit(f"no profile at {path} (seats/PROFILE.json is the source of truth)")
+    try:
+        return profile_mod.load(path)
+    except profile_mod.ProfileError as e:
+        raise SystemExit(f"profile invalid: {e}")
+
+
+def _manifest_or_exit():
+    p = manifest_mod.default_manifest_path()
+    if not p.exists():
+        raise SystemExit(f"no skill manifest at {p}: run `cad compile manifest` first")
+    return manifest_mod.load(p)
+
+
+def cmd_compile(args):
+    p = _load_profile(args)
+    for w in p.warnings:
+        _print(f"[warn] profile: {w}")
+    c = compile_mod.cast(p)
+    _print(f"profile: {p.person.get('name', '?')}  sha {p.sha256[:12]}  "
+           f"archetype {p.best_archetype or '?'}")
+    _print(f"cast:    {', '.join(s.seat for s in c.seats)}  (cast sha {c.sha256[:12]})")
+    for s in c.seats:
+        _print(f"  {s.display:<12} {'fired' if s.fired else 'filled':<6} {s.reason}")
+    for w in c.warnings:
+        _print(f"[warn] {w}")
+    res = compile_mod.write_outputs(p, c, config.repo_root(), write=args.write)
+    for k, v in res.items():
+        _print(f"{k}: {v}")
+    if not args.write and any(v == "would-write" for v in res.values()):
+        _print("re-run with --write to apply, then `cad init` to push USER.md into the seats")
+
+
+def _parse_root(spec: str):
+    label, _, rest = spec.partition("=")
+    if not rest:
+        raise SystemExit(f"--root wants LABEL=PATH[:DEPTH], got {spec!r}")
+    path, depth = rest, 3
+    head, sep, tail = rest.rpartition(":")
+    if sep and tail.isdigit():
+        path, depth = head, int(tail)
+    return (label, Path(path).expanduser(), depth)
+
+
+def cmd_compile_manifest(args):
+    roots = [] if args.roots_only else manifest_mod.default_roots()
+    roots += [_parse_root(r) for r in args.root]
+    m = manifest_mod.scan(roots=roots)
+    out = manifest_mod.default_manifest_path()
+    m.save(out)
+    for label, n in m.counts.items():
+        _print(f"{label}: {n}")
+    if m.skipped_roots:
+        _print(f"skipped (not on this machine): {', '.join(m.skipped_roots)}")
+    _, denied = manifest_mod.Denylist.load(config.repo_root()).filter(m.entries)
+    empty = sum(1 for e in m.entries if e.empty_description)
+    _print(f"total: {len(m.entries)}  shadowed: {len(m.shadowed)}  denied: {len(denied)}  "
+           f"empty-description: {empty}")
+    _print(f"manifest: {out}")
+
+
+def cmd_compile_propose(args):
+    mani = _manifest_or_exit()
+    p = _load_profile(args)
+    c = compile_mod.cast(p)
+    deny = manifest_mod.Denylist.load(config.repo_root())
+    kept, denied = deny.filter(mani.entries)
+    cache = loadout.Cache(loadout.default_cache_path())
+    if args.dry_run:
+        sc = loadout.score_skills(kept, c, None, cache, dry_run=True)
+        est = sc.planned * 5000 * jev.USD_PER_INPUT_TOKEN
+        _print(f"planned: {sc.planned} requests ({sc.cached} cached, {len(denied)} denied), "
+               f"est ≈ ${est:.3f} — dry-run, no network")
+        return
+    if not jev.available():
+        _print(f"no {jev.ENV_KEY} in {config.env_file()} — Jev cannot score the shelf. "
+               "A hand-written seats/LOADOUT.json always works: cad compile install --table …")
+        raise SystemExit(2)
+    client = jev.Client()
+    sc = loadout.score_skills(kept, c, client, cache, max_usd=args.max_usd)
+    cache.save()
+    prop = loadout.propose(sc, c, deny, per=args.per)
+    prop["denied"] = sorted(e.name for e in denied)
+    out = Path(args.out) if args.out else config.repo_root() / "seats" / "LOADOUT-PROPOSAL.json"
+    out.write_text(json.dumps(prop, indent=1, ensure_ascii=False) + "\n")
+    _print(f"scored: {sc.calls} calls, {sc.cached} cached, {len(sc.errors)} errors, "
+           f"≈ ${sc.est_usd:.4f}" + (f"  STOPPED: {sc.stopped_reason}" if sc.stopped_reason else ""))
+    _print(f"proposal: {out}")
+    _print("edit it into seats/LOADOUT.json (the table you install is the one you read), "
+           "then `cad compile install`")
+
+
+def cmd_compile_install(args):
+    mani = _manifest_or_exit()
+    p = _load_profile(args)
+    c = compile_mod.cast(p)
+    table_path = Path(args.table) if args.table else config.repo_root() / "seats" / "LOADOUT.json"
+    if not table_path.exists():
+        _print(f"no loadout table at {table_path}: copy seats/LOADOUT-PROPOSAL.json to "
+               "seats/LOADOUT.json (edit it) or write one by hand")
+        raise SystemExit(2)
+    table = loadout.load_table(table_path)
+    res = loadout.install(table, c, mani, cap=args.cap)
+    for seat, r in res.items():
+        if r["skipped"]:
+            _print(f"{seat}: skipped ({r['skipped']})")
+            continue
+        line = f"{seat}: {len(r['installed'])} in reach"
+        if r["missing"]:
+            line += f"  missing: {', '.join(r['missing'])}"
+        if r["removed"]:
+            line += f"  removed: {', '.join(r['removed'])}"
+        _print(line)
+    t0 = loadout.first_install_ts()
+    if t0:
+        import time as _t
+        _print(f"clock started {_t.strftime('%Y-%m-%d', _t.localtime(t0))} "
+               f"(rule: {evalpair.RULE_WINS} paired wins by day {evalpair.RULE_DAYS})")
+
+
+def cmd_compile_uninstall(args):
+    removed = loadout.uninstall()
+    if not removed:
+        _print("nothing installed")
+    for seat, n in removed.items():
+        _print(f"{seat}: {n} removed")
+
+
+def cmd_compile_status(args):
+    st = loadout.status()
+    cast_path = config.repo_root() / "seats" / "CAST.json"
+    if cast_path.exists():
+        try:
+            _print(f"cast sha:  {json.loads(cast_path.read_text()).get('cast_sha256', '')[:12]}")
+        except ValueError:
+            pass
+    table_path = config.repo_root() / "seats" / "LOADOUT.json"
+    if table_path.exists():
+        _print(f"table sha: {loadout.table_sha256(loadout.load_table(table_path))[:12]}")
+    for seat, s in st["seats"].items():
+        _print(f"{seat}: {s['installed']}")
+    t0 = st["first_install_ts"]
+    if t0:
+        import time as _t
+        days = int((_t.time() - t0) // 86400)
+        _print(f"clock: day {days}/{evalpair.RULE_DAYS} (started "
+               f"{_t.strftime('%Y-%m-%d', _t.localtime(t0))})")
+    else:
+        _print("clock: not started (no loadout installed yet)")
+    r = evalpair.report(Ledger())
+    _print(f"pairs: {r['pairs']} · B {r['b_wins']} · A {r['a_wins']} · ties {r['ties']} · "
+           f"unsettled {r['unsettled']} · verdict: {r['verdict']}")
+
+
+def cmd_compile_dispatch(args):
+    fn = {None: cmd_compile, "manifest": cmd_compile_manifest, "propose": cmd_compile_propose,
+          "install": cmd_compile_install, "uninstall": cmd_compile_uninstall,
+          "status": cmd_compile_status}[getattr(args, "ccmd", None)]
+    fn(args)
+
+
+def _eval_loadout_report():
+    r = evalpair.report(Ledger())
+    _print(f"pairs: {r['pairs']} · B {r['b_wins']} · A {r['a_wins']} · ties {r['ties']} · "
+           f"unsettled {r['unsettled']}")
+    _print(f"days: {'-' if r['days'] is None else int(r['days'])}/{evalpair.RULE_DAYS}   "
+           f"rule: {r['rule']}")
+    for row in r["rows"]:
+        _print(f"  {row['pair_id']}  {row['outcome']:<9} {row['question']}")
+    _print(f"verdict: {r['verdict']}")
+    if r["verdict"] == "PARK":
+        _print("PARK means `cad compile uninstall` and leave it out until the shelf changes")
+
+
+def cmd_eval_loadout(args):
+    if args.question == "report":
+        _eval_loadout_report()
+        return
+    seats = seat_list(args.seats) if args.seats else [SEATS[n] for n in config.FULL_COUNCIL]
+    seats = [models.effective_seat(s.name) for s in seats]
+    for w in heterogeneity_warnings(seats):
+        _print(f"[warn] {w}")
+    dry = args.dry_run
+    table_path = Path(args.table) if args.table else config.repo_root() / "seats" / "LOADOUT.json"
+    table = loadout.load_table(table_path) if table_path.exists() else {"seats": {}}
+    cast = mani = None
+    if table.get("seats") and manifest_mod.default_manifest_path().exists():
+        mani = manifest_mod.load(manifest_mod.default_manifest_path())
+        cast = compile_mod.cast(_load_profile(args))
+    elif table.get("seats"):
+        _print("[warn] loadout table present but no manifest: arm B runs without loadouts "
+               "(run `cad compile manifest`)")
+
+    def factory():
+        return Council(transport="mock" if dry else "auto", mock=MockTransport() if dry else None)
+
+    def before_run(run_id, run_seats):
+        if dry:
+            return
+        budgets.create_budget(run_id=run_id, origin="council", seats=[s.name for s in run_seats],
+                              ceiling_usd=budgets.CEILINGS["full_council"]["hard"],
+                              session_ids=[f"caduceus-{s.name}-{run_id}" for s in run_seats])
+
+    pr = evalpair.run_pair(args.question, seats, _read_context(args), dry, table, cast, mani,
+                           factory, before_run=before_run)
+    _print(f"pair:     {pr.pair_id}")
+    for arm, r in (("A (no loadout)", pr.a), ("B (loadout)", pr.b)):
+        lead = r.winner.seat.upper() if r.winner else "-"
+        _print(f"  {arm:<15} {r.run_id}  lead {lead}  memo {r.memo_path}")
+    _print("settle BOTH when reality reports back, e.g.:")
+    _print(f"  cad ledger settle {pr.a.run_id} --winner <seat>")
+    _print(f"  cad ledger settle {pr.b.run_id} --winner <seat>")
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="cad",
@@ -908,6 +1133,33 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--out", help="override output dir (default ~/.caduceus/evals)")
     s.add_argument("--resume", help="a prior finisher-*.calls.jsonl: reuse its calls, spend only on the rest")
     s.set_defaults(fn=cmd_eval_finisher)
+
+    s = evsub.add_parser("loadout", help="paired A/B council: same question without and with loadouts; or `report`")
+    s.add_argument("question", help="the council question, or the word `report`")
+    s.add_argument("--seats", help="comma list (default: full council)")
+    s.add_argument("--context"); s.add_argument("--context-file")
+    s.add_argument("--table", help="override seats/LOADOUT.json")
+    s.add_argument("--dry-run", action="store_true", help="mock transport, no model calls, excluded from the report")
+    s.set_defaults(fn=cmd_eval_loadout)
+
+    cp = sub.add_parser("compile", help="profile -> cast -> USER.md; skill manifest, loadout proposal, install")
+    cp.add_argument("--write", action="store_true", help="write seats/USER.md + seats/CAST.json on change")
+    cp.add_argument("--profile", help="override seats/PROFILE.json")
+    cp.set_defaults(fn=cmd_compile_dispatch)
+    csub = cp.add_subparsers(dest="ccmd")
+    s = csub.add_parser("manifest", help="scan SKILL.md across the roots into ~/.caduceus/skill-manifest.json")
+    s.add_argument("--root", action="append", default=[], help="LABEL=PATH[:DEPTH], repeatable")
+    s.add_argument("--roots-only", action="store_true", help="skip the default roots")
+    s = csub.add_parser("propose", help="Jev scores the shelf -> seats/LOADOUT-PROPOSAL.json")
+    s.add_argument("--per", type=int, default=5, help="skills per seat per domain")
+    s.add_argument("--max-usd", type=float, default=1.0)
+    s.add_argument("--dry-run", action="store_true", help="count requests, no network")
+    s.add_argument("--out", help="override the proposal path")
+    s = csub.add_parser("install", help="copy the table's skills into each seat's skills/loadout/")
+    s.add_argument("--table", help="override seats/LOADOUT.json")
+    s.add_argument("--cap", type=int, default=15, help="max skills per seat")
+    csub.add_parser("uninstall", help="remove exactly what install recorded")
+    csub.add_parser("status", help="installed counts, clock, pair report")
 
     return p
 
