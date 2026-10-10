@@ -117,3 +117,18 @@ def test_repo_user_md_is_current():
     """The committed USER.md is exactly what compile renders from PROFILE.json."""
     p = profile.load(ROOT / "seats" / "PROFILE.json")
     assert comp.write_outputs(p, comp.cast(p), ROOT, write=False)["USER.md"] == "unchanged"
+
+
+# ---- a second person is a file swap ------------------------------------------
+
+def test_example_thinker_casts_differently():
+    """The compiler is a function of the vector: the synthetic Thinker profile
+    staffs roles Alex never fires and leaves out ones he always does."""
+    p = profile.load(ROOT / "examples" / "PROFILE-thinker.json")
+    c = comp.cast(p)
+    fired = {s.key for s in c.seats if s.fired}
+    assert {"plant", "coordinator", "driver"} <= fired
+    assert "completer_finisher" not in fired and "diplomat" not in fired
+    assert 4 <= len(c.seats) <= 6
+    md = comp.render_user_md(p, c)
+    assert "Example Thinker" in md and md.endswith(comp.CONTRACT_BLOCK)
