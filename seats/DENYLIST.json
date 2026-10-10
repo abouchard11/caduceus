@@ -10,7 +10,15 @@
     "forward",
     "reply",
     "unsubscribe",
-    "undo_send"
+    "undo_send",
+    "xurl",
+    "google-workspace",
+    "project-artifact",
+    "browse",
+    "gstack-browse",
+    "open-gstack-browser",
+    "setup-browser-cookies",
+    "wiki-ingest"
   ],
   "patterns": [
     "*send*",
