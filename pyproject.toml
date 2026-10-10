@@ -17,6 +17,7 @@ cad = "caduceus.cli:main"
 
 [tool.setuptools]
 packages = ["caduceus"]
+package-data = {"caduceus" = ["data/*.json"]}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
