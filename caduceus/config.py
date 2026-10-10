@@ -185,6 +185,24 @@ DOMAIN_KEYWORDS: Dict[str, List[str]] = {
 }
 
 
+# One line per domain, for the Jev Choice question that classifies a council
+# question (classify.py). `general` is the catch-all Jev needs so the
+# distribution can say "none of the above" instead of forcing a fit.
+DOMAIN_DESCRIPTIONS: Dict[str, str] = {
+    "implementation": "building or changing code, functions, APIs, fixing bugs, shipping features",
+    "review": "verifying, auditing, checking or correcting existing work for defects",
+    "types": "type systems, schemas, interfaces, TypeScript, validation contracts",
+    "testing": "tests, coverage, pytest, end-to-end checks, test strategy",
+    "security": "authentication, secrets, injection, vulnerabilities, hardening",
+    "research": "finding, comparing, investigating sources and evidence",
+    "strategy": "roadmap, pivots, positioning, pricing, planning what to do next",
+    "comms": "emails, messages, replies, tone, outreach, posts aimed at a human reader",
+    "infra": "deployment, servers, docker, launchd, cron, daemons, operations",
+    "data": "SQL, databases, ETL, CSV, analytics pipelines",
+    "general": "none of the above, or too vague to tell",
+}
+
+
 def classify_domain(text: str) -> str:
     t = text.lower()
     best, best_hits = "general", 0
