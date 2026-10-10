@@ -1,0 +1,51 @@
+{
+  "schema": "caduceus.cast.v1",
+  "profile_sha256": "57432d79194f921d8a992c85f4f8425eaee0d8737ae55407f659788512d217e5",
+  "cast_sha256": "dea689dd2c2cb7284d166ea4058a45468b20a7dfcbc8f0aa917bbb3326454516",
+  "generated": "2026-10-10T16:46:28",
+  "seats": [
+    {
+      "key": "implementer",
+      "seat": "forge",
+      "display": "FORGE",
+      "fired": true,
+      "margin": 50.0,
+      "reason": "least-like Implementer"
+    },
+    {
+      "key": "completer_finisher",
+      "seat": "finisher",
+      "display": "FINISHER",
+      "fired": true,
+      "margin": 14.0,
+      "reason": "Organized 26 vs ≤40"
+    },
+    {
+      "key": "source_grinder",
+      "seat": "recon",
+      "display": "RECON",
+      "fired": true,
+      "margin": 15.0,
+      "reason": "Curious 95 vs ≥80 and Detail-oriented 34 vs ≤50"
+    },
+    {
+      "key": "stress_tester",
+      "seat": "sparring",
+      "display": "SPARRING",
+      "fired": true,
+      "margin": 15.0,
+      "reason": "Original 95 vs ≥80"
+    },
+    {
+      "key": "diplomat",
+      "seat": "envoy",
+      "display": "ENVOY",
+      "fired": true,
+      "margin": 9.0,
+      "reason": "Direct 94 vs ≥80 and Empathetic 41 vs ≤50"
+    }
+  ],
+  "warnings": [
+    "council spans 4 of 5 model families (duplicate: qwen) - same-family seats agree too easily"
+  ]
+}
