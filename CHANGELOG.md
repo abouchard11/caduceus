@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.4.0 — 2026-10-10
+`cad compile`: the complement compiler (design `docs/compile-design.md`, decisions 11–24).
+- `seats/PROFILE.json` is the person as data (PrinciplesYou taxonomy, any instrument maps
+  in); `seats/USER.md` is generated from it, operating contract byte-identical; `seats/CAST.json`
+  records the cast. Golden test: Alex's profile compiles to exactly the five seats.
+- Archetype library of nine fixed roles; the vector staffs four to six. Four never-staffed
+  archetypes (plant, coordinator, anchor, driver) carry soul templates.
+- Jev (TypeSafe System One) in two bounded slots, never as synthesis: domain classification
+  with keyword fallback and a believability blend below 0.6 confidence; offline skill scoring
+  for loadout proposals. First-party endpoint, 1 MB body cap, range-checked answers, cost
+  recorded in the memo, no egress on mock or dry runs.
+- Skill manifest across four roots (`~/.claude/skills`, plugin cache, `~/.hermes/skills`,
+  `skills/`) with a denylist of reach (`seats/DENYLIST.json`): send, publish, pay, deploy,
+  settings, secrets never enter a seat.
+- Static loadout install into `profiles/<seat>/skills/loadout/`, recorded and reversible,
+  capped at 15 per seat; names validated as single path components, containment checked,
+  symlinks preserved, secrets skipped.
+- `cad eval loadout`: paired A/B councils under one pair id; `council_runs` gains `pair_id`,
+  `arm`, `lead`; the pre-registered rule (3 B-wins and B > A at day 14) is computed by
+  `cad eval loadout report` and never settles anything itself.
+- Doctor rows `profile` and `loadout`; the morning brief carries the clock.
+- Still owed from 0.3.3–0.3.5: changelog lines for the spend guard, the license change and
+  the family guard (they landed on main without one).
+
 ## 0.3.6 — 2026-09-02
 Adversarial review of the executor's write path (the seat-work executor runs
 UNATTENDED from launchd, Mon/Thu 08:45, `--live`). Findings verified by

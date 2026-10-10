@@ -199,3 +199,69 @@ def test_agreement_math():
     c_ = parse_draft(SeatReply("c", D("block everything", "halt and audit"), True, "mock"), 1)
     assert not pair_agrees(a, c_)
     assert jaccard("", "x") == 0.0
+
+
+def test_low_confidence_classification_blends_believability():
+    """Decision 13: below 0.6 confidence a seat's weight uses the top two
+    domains' believability, weighted by probability; at or above it, the
+    single top domain as before."""
+    from caduceus.classify import Classification
+    led = Ledger()
+    for _ in range(3):
+        led.record("finisher", "review", "win")
+    for _ in range(3):
+        led.record("finisher", "implementation", "loss")
+    b_rev = led.believability("finisher", "review").score
+    b_impl = led.believability("finisher", "implementation").score
+    assert b_rev > b_impl
+    script = {
+        "forge": [D("A", "adopt plan A", 0.7), D("A", "adopt plan A", 0.7)],
+        "finisher": [D("B", "adopt plan B", 0.7), D("B", "adopt plan B", 0.7)],
+    }
+    seats = [SEATS["forge"], SEATS["finisher"]]
+    lo = Classification("review", {"review": 0.5, "implementation": 0.5}, 0.5, "jev")
+    res = Council(ledger=led, transport="mock", mock=MockTransport(script)).run(
+        "q", seats, classification=lo)
+    assert res.domain == "review" and res.classification is lo
+    assert res.weights["finisher"] == round((0.5 * b_rev + 0.5 * b_impl) * 0.7, 4)
+    assert "Classifier" in Path(res.memo_path).read_text()
+
+    hi = Classification("review", {"review": 0.9, "implementation": 0.1}, 0.9, "jev")
+    res2 = Council(ledger=led, transport="mock", mock=MockTransport({
+        k: list(v) for k, v in script.items()})).run("q", seats, classification=hi)
+    assert res2.weights["finisher"] == round(b_rev * 0.7, 4)
+
+
+def test_explicit_domain_skips_the_classifier():
+    script = {"forge": [D("A", "a", 0.7), D("A", "a", 0.7)],
+              "finisher": [D("B", "b", 0.7), D("B", "b", 0.7)]}
+    res = Council(ledger=Ledger(), transport="mock", mock=MockTransport(script)).run(
+        "q", [SEATS["forge"], SEATS["finisher"]], domain="security")
+    assert res.domain == "security" and res.classification.source == "given"
+
+
+def test_mock_transport_never_calls_jev(monkeypatch):
+    """Security review 2026-10-10: a dry run must not send the question anywhere."""
+    from caduceus import jev
+    monkeypatch.setattr(jev, "available", lambda: True)
+
+    class Boom:
+        def __init__(self, *a, **k):
+            raise AssertionError("Jev client constructed during a mock run")
+    monkeypatch.setattr(jev, "Client", Boom)
+    script = {"forge": [D("A", "a", 0.7), D("A", "a", 0.7)],
+              "finisher": [D("B", "b", 0.7), D("B", "b", 0.7)]}
+    res = Council(ledger=Ledger(), transport="mock", mock=MockTransport(script)).run(
+        "q", [SEATS["forge"], SEATS["finisher"]])
+    assert res.classification.source == "keyword"
+
+
+def test_jev_classifier_cost_lands_in_costs():
+    import pytest
+    from caduceus.classify import Classification
+    cl = Classification("review", {"review": 1.0}, 0.9, "jev", usage={"input_tokens": 1_000_000})
+    script = {"forge": [D("A", "a", 0.7), D("A", "a", 0.7)],
+              "finisher": [D("B", "b", 0.7), D("B", "b", 0.7)]}
+    res = Council(ledger=Ledger(), transport="mock", mock=MockTransport(script)).run(
+        "q", [SEATS["forge"], SEATS["finisher"]], classification=cl)
+    assert res.costs["jev"] == pytest.approx(0.042)

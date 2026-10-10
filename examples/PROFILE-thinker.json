@@ -1,0 +1,23 @@
+{
+  "schema": "caduceus.profile.v1",
+  "person": {
+    "name": "Example Thinker",
+    "handle": "thinker",
+    "blurb": "A synthetic second person: the Thinker/Strategist archetype from research/2026-08-25-multi-agent-developer-personas.md. Exists to show that the compiler is a function of the vector, not of Alex."
+  },
+  "instrument": {"name": "PrinciplesYou", "source": "synthetic example, not a real report"},
+  "archetypes": {"best": "Thinker", "secondary": ["Strategist"], "least_like": ["Shaper", "Entertainer"]},
+  "traits": {
+    "Deliberative": {"pct": 92, "facets": {"Logical": 94, "Systematic": 90, "Impartial": 88}},
+    "Detailed and Reliable": {"pct": 90, "facets": {"Dependable": 91, "Detail-oriented": 88, "Organized": 85}},
+    "Composed": {"pct": 55, "facets": {"Calm": 60, "Confident": 48, "Poised": 58}},
+    "Creative": {"pct": 42, "facets": {"Curious": 60, "Original": 35, "Non-conforming": 30}},
+    "Determined": {"pct": 45},
+    "Leadership": {"pct": 35},
+    "Tough": {"pct": 50, "facets": {"Direct": 55, "Feisty": 40}},
+    "Nurturing": {"pct": 62, "facets": {"Empathetic": 60}},
+    "Practical": {"pct": 70},
+    "Conceptual": {"pct": 80}
+  },
+  "notes": {"Why this file exists": "a file swap, not a rewrite, is what makes a second person possible (Decision 11)."}
+}

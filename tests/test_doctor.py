@@ -497,3 +497,52 @@ def test_brief_delivery_fails_when_a_scheduled_run_was_actually_missed(monkeypat
 
     assert status == doctor.FAIL
     assert "cad brief --write" in detail
+
+
+# ---- compile rows (0.4.0) ----------------------------------------------------
+
+def _repo_copy(tmp_path, monkeypatch):
+    import shutil
+    from pathlib import Path
+    src = Path(__file__).resolve().parent.parent
+    dst = tmp_path / "repo"
+    (dst / "seats").mkdir(parents=True)
+    for f in ["PROFILE.json", "DENYLIST.json", "USER.md", "CAST.json"]:
+        shutil.copy(src / "seats" / f, dst / "seats" / f)
+    monkeypatch.setenv("CADUCEUS_REPO", str(dst))
+    return dst
+
+
+def test_profile_row_ok_then_warn_when_user_md_stale(tmp_path, monkeypatch):
+    repo = _repo_copy(tmp_path, monkeypatch)
+    status, detail = _row(doctor.checks(), "profile")
+    assert status == doctor.OK and "USER.md" in detail
+    (repo / "seats" / "USER.md").write_text("hand edited\n")
+    status, detail = _row(doctor.checks(), "profile")
+    assert status == doctor.WARN and "cad compile --write" in detail
+
+
+def test_profile_row_warns_without_profile(tmp_path, monkeypatch):
+    repo = _repo_copy(tmp_path, monkeypatch)
+    (repo / "seats" / "PROFILE.json").unlink()
+    status, detail = _row(doctor.checks(), "profile")
+    assert status == doctor.WARN and "PROFILE.json" in detail
+
+
+def test_loadout_row_not_installed_then_clock(tmp_path, monkeypatch):
+    _repo_copy(tmp_path, monkeypatch)
+    from caduceus import loadout
+    status, detail = _row(doctor.checks(), "loadout")
+    assert status == doctor.OK and "not installed" in detail
+    loadout.mark_first_install()
+    status, detail = _row(doctor.checks(), "loadout")
+    assert status == doctor.OK and "day 0/14" in detail and "RUNNING" in detail
+
+
+def test_profile_row_warns_when_a_seat_copy_is_stale(tmp_path, monkeypatch):
+    _repo_copy(tmp_path, monkeypatch)
+    pd = profile_dir("finisher")
+    pd.mkdir(parents=True, exist_ok=True)
+    (pd / "USER.md").write_text("# CADUCEUS PRINCIPAL PROFILE — stale copy\n")
+    status, detail = _row(doctor.checks(), "profile")
+    assert status == doctor.WARN and "cad init" in detail and "finisher" in detail

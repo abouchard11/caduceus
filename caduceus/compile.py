@@ -1,0 +1,206 @@
+"""`cad compile`: profile → cast (and, in later tasks, USER.md and loadouts).
+
+The casting rule (docs/compile-design.md §3.3): evaluate every archetype's
+trigger; fired ones are staffed; fill to four by smallest shortfall; cap at
+six by largest margin; keep library order so casts read the same way for
+everyone. Heterogeneity warnings print, never block.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import time
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Dict, List
+
+from . import archetypes, config
+from .config import Seat, heterogeneity_warnings
+from .profile import Profile
+
+CAST_MIN, CAST_MAX = 4, 6
+CONFIDENCE_GATE, GATE_EXTRA = 0.7, 10.0
+CAST_SCHEMA = "caduceus.cast.v1"
+
+
+@dataclass
+class CastSeat:
+    key: str
+    seat: str
+    display: str
+    fired: bool
+    margin: float
+    reason: str
+
+
+@dataclass
+class Cast:
+    profile_sha256: str
+    seats: List[CastSeat]
+    warnings: List[str] = field(default_factory=list)
+    generated: str = ""
+
+    @property
+    def sha256(self) -> str:
+        return hashlib.sha256(json.dumps([s.seat for s in self.seats]).encode()).hexdigest()
+
+    def to_json(self) -> dict:
+        return {"schema": CAST_SCHEMA, "profile_sha256": self.profile_sha256,
+                "cast_sha256": self.sha256, "generated": self.generated,
+                "seats": [asdict(s) for s in self.seats], "warnings": list(self.warnings)}
+
+
+def seat_for(key: str) -> Seat:
+    """The Seat an archetype instantiates: the real SEATS entry when the
+    profile exists, else a fabricated one from the library defaults (never
+    applied to an existing seat: compile does not touch model casting)."""
+    a = archetypes.by_key(key)
+    if a.seat in config.SEATS:
+        return config.SEATS[a.seat]
+    return Seat(name=a.seat, display=a.display, role=a.job, model=a.model,
+                provider=a.provider, family=a.family, temperature_hint="balanced",
+                port=8660 + archetypes.LIBRARY.index(a), domains=list(a.domains))
+
+
+def cast(p: Profile) -> Cast:
+    def extra(name: str) -> float:
+        return GATE_EXTRA if p.confidence(name) < CONFIDENCE_GATE else 0.0
+
+    rows: List[CastSeat] = []
+    for a in archetypes.LIBRARY:
+        fired, margin, reason = a.trigger(p, extra)
+        rows.append(CastSeat(a.key, a.seat, a.display, fired, round(margin, 1), reason))
+    chosen = [r for r in rows if r.fired]
+    if len(chosen) < CAST_MIN:
+        fill = sorted((r for r in rows if not r.fired), key=lambda r: -r.margin)
+        chosen += fill[:CAST_MIN - len(chosen)]
+    if len(chosen) > CAST_MAX:
+        chosen = sorted(chosen, key=lambda r: -r.margin)[:CAST_MAX]
+    order = {a.key: i for i, a in enumerate(archetypes.LIBRARY)}
+    chosen.sort(key=lambda r: order[r.key])
+    warns = heterogeneity_warnings([seat_for(r.key) for r in chosen])
+    return Cast(profile_sha256=p.sha256, seats=chosen, warnings=list(warns),
+                generated=time.strftime("%Y-%m-%dT%H:%M:%S"))
+
+
+# ---------------------------------------------------------------- USER.md
+
+# Verbatim from the hand-written seats/USER.md of 2026-08-19. Every seat reads
+# this as its employment contract; compile regenerates the prose around it and
+# never this block (docs/compile-design.md §3.4, Decision 10).
+CONTRACT_BLOCK = """## Operating contract (all seats)
+
+1. **He is the Shaper. You are staff.** He sets goals, direction, and makes
+   final calls. No seat originates strategy; seats sharpen, verify, execute.
+2. **Bad news first. No sycophancy.** Composed 99 + Receptive 90 means the
+   kindest thing you can do is be blunt and specific.
+3. **Push back with evidence.** "This is wrong because X" beats agreement.
+   Agreement without independent reasoning damages your ledger score.
+4. **Everything legible.** If it isn't written to a file, the kanban, the
+   ledger, or the knowledge graph, it didn't happen.
+5. **Never bypass the guard.** CRITICAL commands have no override. HIGH
+   commands need a second seat or the operator (two-person rule).
+6. **Settle the ledger.** Advice that never gets scored never compounds.
+"""
+
+STRENGTH_FLOOR = 85
+
+
+def _gap_label(reason: str) -> str:
+    """'Direct 94 vs ≥80 and Empathetic 41 vs ≤50' -> 'Direct 94 + Empathetic 41';
+    'least-like Implementer' -> 'Least-like Implementer'."""
+    parts = []
+    for clause in reason.split(" and "):
+        clause = clause.strip()
+        if clause.startswith("least-like "):
+            parts.append("Least-like " + clause[len("least-like "):])
+        else:
+            parts.append(clause.split(" vs ")[0])
+    return " + ".join(parts)
+
+
+def render_user_md(p: Profile, c: Cast) -> str:
+    person = p.person
+    name = person.get("name", "the operator")
+    lines: List[str] = []
+    lines.append(f"# CADUCEUS PRINCIPAL PROFILE — {name}")
+    lines.append("")
+    lines.append(f"<!-- generated by `cad compile` from seats/PROFILE.json "
+                 f"(sha {p.sha256[:12]}) — edit the JSON, not this file.")
+    lines.append("     Installed by caduceus into every seat: this file tells each seat WHO it")
+    src = p.instrument.get("name", "assessment")
+    how = p.instrument.get("source", "")
+    lines.append(f"     works for and WHY the seat exists. Source: {src} "
+                 f"({how}). -->" if how else f"     works for and WHY the seat exists. Source: {src}. -->")
+    lines.append("")
+    lines.append("## Who the operator is")
+    lines.append("")
+    blurb = person.get("blurb", "").strip()
+    lines.append(f"{name}. {blurb}" if blurb else f"{name}.")
+    lines.append("")
+    best = p.best_archetype.upper() or "UNKNOWN"
+    sec = ", ".join(p.secondary) or "none"
+    least = ", ".join(p.least_like) or "none"
+    lines.append(f"**Archetype: {best} (best match).** Secondary: {sec}.")
+    lines.append(f"**Least like: {least}.** That gap is why you exist.")
+    lines.append("")
+    lines.append(f"## The numbers that matter ({src}, percentile)")
+    lines.append("")
+    lines.append("Strengths — amplify, never duplicate:")
+    strengths = []
+    for tname, entry in p.raw.get("traits", {}).items():
+        pct = entry.get("pct")
+        if isinstance(pct, (int, float)) and pct >= STRENGTH_FLOOR:
+            facets = entry.get("facets", {})
+            fac = ", ".join(f"{k} {v}" for k, v in sorted(facets.items(), key=lambda kv: -kv[1]))
+            text = f"{tname} {int(pct)}" + (f" ({fac})" if fac else "")
+            if entry.get("note"):
+                text += f" — {entry['note']}"
+            strengths.append((int(pct), text))
+    for _, text in sorted(strengths, key=lambda s: -s[0]):
+        lines.append(f"- {text}")
+    lines.append("")
+    lines.append("Gaps — this is your job description:")
+    for s in c.seats:
+        a = archetypes.by_key(s.key)
+        tag = "" if s.fired else " (filled to the four-seat floor, not a measured gap)"
+        lines.append(f"- **{_gap_label(s.reason)}** — {s.display}: {a.job}{tag}")
+    for k, v in p.notes.items():
+        lines.append(f"- {k} — {v}")
+    lines.append("")
+    lines.append(CONTRACT_BLOCK)
+    return "\n".join(lines)
+
+
+def _cast_text(c: Cast) -> str:
+    return json.dumps(c.to_json(), indent=2, ensure_ascii=False) + "\n"
+
+
+def _same_cast(existing: str, fresh: str) -> bool:
+    try:
+        a, b = json.loads(existing), json.loads(fresh)
+    except ValueError:
+        return False
+    a.pop("generated", None)
+    b.pop("generated", None)
+    return a == b
+
+
+def write_outputs(p: Profile, c: Cast, repo_root, write: bool) -> Dict[str, str]:
+    """Write seats/USER.md and seats/CAST.json only when their content changes.
+    Returns per-file: 'unchanged' | 'written' | 'would-write'."""
+    seats_dir = Path(repo_root) / "seats"
+    out: Dict[str, str] = {}
+    targets = {"USER.md": (render_user_md(p, c), lambda old, new: old == new),
+               "CAST.json": (_cast_text(c), _same_cast)}
+    for fname, (text, same) in targets.items():
+        path = seats_dir / fname
+        old = path.read_text() if path.exists() else None
+        if old is not None and same(old, text):
+            out[fname] = "unchanged"
+        elif write:
+            path.write_text(text)
+            out[fname] = "written"
+        else:
+            out[fname] = "would-write"
+    return out

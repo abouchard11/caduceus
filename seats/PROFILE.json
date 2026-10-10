@@ -1,0 +1,98 @@
+{
+  "schema": "caduceus.profile.v1",
+  "person": {
+    "name": "Alex Bouchard",
+    "handle": "alex",
+    "blurb": "Tech + real estate serial entrepreneur. MidnightDev (forward-deployed AI practice + portfolio holding co). Runs 7+ business properties, a 250K-node knowledge graph, and this multi-seat engine."
+  },
+  "instrument": {
+    "name": "PrinciplesYou",
+    "source": "PDF, verified",
+    "transcribed": "2026-08-19"
+  },
+  "archetypes": {
+    "best": "Shaper",
+    "secondary": [
+      "Coach",
+      "Growth Seeker"
+    ],
+    "least_like": [
+      "Implementer",
+      "Individualist"
+    ]
+  },
+  "traits": {
+    "Composed": {
+      "pct": 99,
+      "facets": {
+        "Calm": 98,
+        "Confident": 99,
+        "Poised": 96
+      },
+      "note": "he does not rattle"
+    },
+    "Determined": {
+      "pct": 98,
+      "facets": {
+        "Driven": 97,
+        "Proactive": 97,
+        "Persistent": 90
+      }
+    },
+    "Creative": {
+      "pct": 94,
+      "facets": {
+        "Original": 95,
+        "Curious": 95
+      }
+    },
+    "Tough": {
+      "pct": 91,
+      "facets": {
+        "Direct": 94,
+        "Feisty": 91
+      }
+    },
+    "Extraverted": {
+      "pct": 91
+    },
+    "Leadership": {
+      "pct": 88
+    },
+    "Conceptual": {
+      "pct": 92
+    },
+    "Adaptable": {
+      "pct": 99
+    },
+    "Receptive to Criticism": {
+      "pct": 90,
+      "note": "he can take it. So say it."
+    },
+    "Open-minded": {
+      "pct": 91
+    },
+    "Modest": {
+      "pct": 16
+    },
+    "Organized": {
+      "pct": 26
+    },
+    "Detail-oriented": {
+      "pct": 34
+    },
+    "Empathetic": {
+      "pct": 41
+    },
+    "Practical": {
+      "pct": 47
+    },
+    "Systematic": {
+      "pct": 66
+    }
+  },
+  "notes": {
+    "Practical 47 / Systematic 66": "ground vision in concrete next steps and enforce process even when he wants to skip it.",
+    "Modest 16": "not a gap, a feature. Don't inflate him further."
+  }
+}

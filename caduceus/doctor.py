@@ -282,7 +282,56 @@ def checks() -> List[Tuple[str, str, str]]:
     out.append((OK if len(env.get("CADUCEUS_API_KEY", "")) >= 16 else WARN,
                 "api key", "present" if env.get("CADUCEUS_API_KEY") else
                 "not generated yet (created on cad init)"))
+
+    # compile (0.4.0): the profile is data, USER.md is generated from it. A
+    # hand edit or a stale render is exactly the drift Decision 10 forbids.
+    out.append(_profile_row())
+    out.append(_loadout_row())
     return out
+
+
+def _profile_row() -> Tuple[str, str, str]:
+    from . import compile as compile_mod, profile as profile_mod
+    path = config.repo_root() / "seats" / "PROFILE.json"
+    if not path.exists():
+        return (WARN, "profile", f"no seats/PROFILE.json at {path.parent} - USER.md is hand-written")
+    try:
+        p = profile_mod.load(path)
+        res = compile_mod.write_outputs(p, compile_mod.cast(p), config.repo_root(), write=False)
+    except Exception as e:  # a broken profile is a warning, never a doctor crash
+        return (WARN, "profile", f"PROFILE.json unreadable: {e}")
+    stale = [k for k, v in res.items() if v != "unchanged"]
+    if stale:
+        return (WARN, "profile", f"{', '.join(stale)} stale vs PROFILE.json - run "
+                                 "`cad compile --write` then `cad init`")
+    repo_user = (config.repo_root() / "seats" / "USER.md").read_text()
+    stale_seats = []
+    for name in SEATS:
+        copy = profile_dir(name) / "USER.md"
+        if copy.exists() and copy.read_text() != repo_user:
+            stale_seats.append(name)
+    if stale_seats:
+        return (WARN, "profile", f"seat copies stale ({', '.join(stale_seats)}) - run `cad init`")
+    return (OK, "profile", f"USER.md and CAST.json match PROFILE.json (sha {p.sha256[:12]})")
+
+
+def _loadout_row() -> Tuple[str, str, str]:
+    from . import evalpair, loadout
+    from .ledger import Ledger
+    try:
+        st = loadout.status()
+        t0 = st["first_install_ts"]
+        if t0 is None:
+            return (OK, "loadout", "not installed (clock not started)")
+        n = sum(s["installed"] for s in st["seats"].values())
+        k = sum(1 for s in st["seats"].values() if s["installed"])
+        r = evalpair.report(Ledger())
+        days = int(r["days"]) if r["days"] is not None else 0
+        detail = (f"{n} skills across {k} seats; day {days}/{evalpair.RULE_DAYS}; pairs {r['pairs']} "
+                  f"(B {r['b_wins']} / A {r['a_wins']}, {r['unsettled']} unsettled); {r['verdict']}")
+        return (WARN if r["verdict"] == "PARK" else OK, "loadout", detail)
+    except Exception as e:
+        return (WARN, "loadout", f"status unreadable: {e}")
 
 
 def render(rows: List[Tuple[str, str, str]]) -> str:

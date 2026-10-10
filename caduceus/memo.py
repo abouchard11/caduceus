@@ -22,6 +22,11 @@ def write_memo(result: "CouncilResult", ledger: "Ledger") -> str:
     lines.append(f"**Domain:** {result.domain} | **Mode:** {result.mode} | "
                  f"**Seats:** {', '.join(result.seats)} | "
                  f"**Elapsed:** {result.elapsed_s}s | {ts}")
+    cl = getattr(result, "classification", None)
+    if cl is not None:
+        blend = (" | blended over " + " + ".join(f"{d} {w:.2f}" for d, w in cl.blend_domains())
+                 if cl.needs_blend else "")
+        lines.append(f"**Classifier:** {cl.source} ({cl.confidence:.2f}){blend}")
     lines.append("")
 
     if result.winner:

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "caduceus"
-version = "0.3.6"
+version = "0.4.0"
 description = "Multi-seat decision engine on Hermes Agent: council deliberation, believability ledger, command guard. The operator is the Shaper; the seats are staff."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -17,6 +17,7 @@ cad = "caduceus.cli:main"
 
 [tool.setuptools]
 packages = ["caduceus"]
+package-data = {"caduceus" = ["data/*.json"]}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

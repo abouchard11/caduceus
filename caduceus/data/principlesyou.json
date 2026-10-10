@@ -1,0 +1,20 @@
+{
+  "instrument": "PrinciplesYou",
+  "version": "2023.04.25",
+  "source": "The Science Behind the Assessment, Table 1 (support.principlesus.com)",
+  "traits": {
+    "Autonomous": ["Independent", "Internally Motivated", "Self-accountable"],
+    "Flexible": ["Adaptable", "Agile", "Growth-seeking"],
+    "Leadership": ["Demanding", "Inspiring", "Taking Charge"],
+    "Creative": ["Curious", "Original", "Non-conforming"],
+    "Composed": ["Confident", "Calm", "Poised"],
+    "Humble": ["Modest", "Open-minded", "Receptive to Criticism"],
+    "Nurturing": ["Empathetic", "Helpful", "Person-oriented"],
+    "Deliberative": ["Impartial", "Logical", "Systematic"],
+    "Determined": ["Driven", "Persistent", "Proactive"],
+    "Extraverted": ["Adventurous", "Engaging", "Gregarious"],
+    "Tough": ["Critical", "Direct", "Feisty"],
+    "Detailed and Reliable": ["Dependable", "Detail-oriented", "Organized"]
+  },
+  "independent": ["Status-seeking", "Conceptual", "Energetic", "Humorous", "Practical"]
+}

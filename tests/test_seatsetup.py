@@ -587,3 +587,25 @@ def test_install_cron_registers_no_agent_script_jobs(monkeypatch):
     assert "brief --write" in morning.read_text()
     assert "brief --weekly --write" in weekly.read_text()
     assert os.access(morning, os.X_OK)
+
+
+# ---- review fix 2026-10-10: cad init pushes a regenerated USER.md -----------
+
+def test_install_user_md_overwrites_changed_content(tmp_path, monkeypatch):
+    from pathlib import Path
+    repo = tmp_path / "repo"
+    (repo / "seats").mkdir(parents=True)
+    (repo / "seats" / "USER.md").write_text("# CADUCEUS PRINCIPAL PROFILE — new\n")
+    monkeypatch.setenv("CADUCEUS_REPO", str(repo))
+    seat = SEATS["finisher"]
+    pd = config.hermes_home() / "profiles" / seat.name
+    pd.mkdir(parents=True)
+    (pd / "USER.md").write_text("# CADUCEUS PRINCIPAL PROFILE — old\n")
+    log = []
+    seatsetup.install_user_md(seat, log)
+    assert (pd / "USER.md").read_text() == "# CADUCEUS PRINCIPAL PROFILE — new\n"
+    assert any(p.name.startswith("USER.md.bak.caduceus-") for p in pd.iterdir())
+    assert any("updated" in l for l in log)
+    log2 = []
+    seatsetup.install_user_md(seat, log2)
+    assert any("current" in l for l in log2)

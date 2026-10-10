@@ -264,27 +264,27 @@ def test_check_daily_budget_ok():
         status, spend, ceiling = budgets.check_daily_budget()
         assert status == "ok"
         assert spend == 2.50  # 1.00 * 2.5
-        assert ceiling == 10.00  # default daily ceiling
+        assert ceiling == 100.00  # default daily ceiling (raised from 10.00 on 2026-09-30 by operator instruction)
 
 
 def test_check_daily_budget_warn():
     """Test daily budget check when at 80% of ceiling."""
-    # 80% of $10.00 = $8.00, so estimated = $8.00 / 2.5 = $3.20
-    with patch.object(budgets, 'aggregate_daily_spend', return_value=3.20):
+    # 80% of $100.00 = $80.00, so estimated = $80.00 / 2.5 = $32.00
+    with patch.object(budgets, 'aggregate_daily_spend', return_value=32.00):
         status, spend, ceiling = budgets.check_daily_budget()
         assert status == "warn"
-        assert spend == 8.00
-        assert ceiling == 10.00
+        assert spend == 80.00
+        assert ceiling == 100.00
 
 
 def test_check_daily_budget_block():
     """Test daily budget check when at or over ceiling."""
-    # At ceiling: $10.00 effective = $4.00 estimated
-    with patch.object(budgets, 'aggregate_daily_spend', return_value=4.00):
+    # At ceiling: $100.00 effective = $40.00 estimated
+    with patch.object(budgets, 'aggregate_daily_spend', return_value=40.00):
         status, spend, ceiling = budgets.check_daily_budget()
         assert status == "block"
-        assert spend == 10.00
-        assert ceiling == 10.00
+        assert spend == 100.00
+        assert ceiling == 100.00
 
 
 def test_aggregate_run_spend():

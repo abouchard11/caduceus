@@ -27,6 +27,8 @@ from typing import Dict, List, Optional, Tuple
 from . import config, memo
 from .config import Seat
 from .hermes import MockTransport, SeatReply, Transport, pick_transport
+from . import classify as _classify
+from .classify import Classification
 from .ledger import Ledger
 
 AGREEMENT_JACCARD = 0.35
@@ -244,6 +246,7 @@ class CouncilResult:
     errors: List[str] = field(default_factory=list)
     seat_models: Dict[str, str] = field(default_factory=dict)
     costs: Dict[str, float] = field(default_factory=dict)  # USD per seat, est.
+    classification: Optional[Classification] = None
 
 
 class Council:
@@ -254,6 +257,8 @@ class Council:
         self.transport_pref = transport
         self.mock = mock
         self._usage_events: List[Tuple[str, Dict]] = []
+        self._classification: Optional[Classification] = None
+        self._pair: Tuple[str, str] = ("", "")
 
     def _ask_parallel(self, seats: List[Seat], prompts: Dict[str, str],
                       session_hint: str) -> Tuple[List[SeatReply], Dict[str, str]]:
@@ -274,7 +279,10 @@ class Council:
 
     def run(self, question: str, seats: List[Seat], context: str = "",
             quick: bool = False, escalate: bool = True,
-            domain: Optional[str] = None, run_id: Optional[str] = None) -> CouncilResult:
+            domain: Optional[str] = None, run_id: Optional[str] = None,
+            classification: Optional[Classification] = None,
+            pair_id: str = "", arm: str = "",
+            allow_jev: bool = True) -> CouncilResult:
         t0 = time.time()
         # Pre-flight, fail-closed (RECON precondition, run 20260823-224424):
         # the guard used to fire only after money was gone. A council must not
@@ -289,7 +297,20 @@ class Council:
                 f"daily budget blocked before start: ${_spend:.2f} >= ${_ceil:.2f} "
                 "(cad budget status)")
         run_id = run_id or (time.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6])
-        domain = domain or config.classify_domain(question)
+        # Decision 13: an explicit domain is taken as given; otherwise Jev's
+        # distribution (keyword fallback) names the domain and, at low
+        # confidence, blends believability across the top two in _finish.
+        if classification is None:
+            if domain:
+                classification = Classification(domain, {domain: 1.0}, 1.0, "given")
+            else:
+                # A mock/dry run must not send the question anywhere
+                # (security review 2026-10-10): no Jev without a live transport.
+                live = allow_jev and self.transport_pref != "mock" and self.mock is None
+                classification = _classify.domain_distribution(question, allow_jev=live)
+        domain = domain or classification.top
+        self._classification = classification
+        self._pair = (pair_id or "", arm or "")
         mode = "quick" if quick else "full"
         rounds: Dict[int, List[Draft]] = {}
         errors: List[str] = []
@@ -399,10 +420,15 @@ class Council:
                     conformity_flags.append(
                         f"{d.seat}: changed position without citing a cause")
 
+        classification = getattr(self, "_classification", None)
         weights: Dict[str, float] = {}
         for name, d in finals.items():
-            b = self.ledger.believability(name, domain)
-            weights[name] = round(b.score * max(d.confidence, 0.05), 4)
+            if classification is not None and classification.needs_blend:
+                score = sum(w * self.ledger.believability(name, dom).score
+                            for dom, w in classification.blend_domains())
+            else:
+                score = self.ledger.believability(name, domain).score
+            weights[name] = round(score * max(d.confidence, 0.05), 4)
 
         ranked = sorted(weights.items(), key=lambda kv: -kv[1])
         winner = finals.get(ranked[0][0]) if ranked else None
@@ -429,6 +455,8 @@ class Council:
                         costs[seat_name] = round(costs.get(seat_name, 0.0) + est, 5)
         except Exception:
             pass  # cost accounting must never break a council
+        if classification is not None and classification.usage:
+            costs["jev"] = round(classification.est_usd, 6)
 
         result = CouncilResult(
             run_id=run_id, question=question, domain=domain, mode=mode,
@@ -438,10 +466,14 @@ class Council:
             elapsed_s=round(time.time() - t0, 1),
             transport_used=transport_used, errors=errors,
             seat_models=seat_models, costs=costs,
+            classification=classification,
         )
         result.memo_path = memo.write_memo(result, self.ledger)
+        pair_id, arm = getattr(self, "_pair", ("", ""))
         self.ledger.register_run(run_id, domain, question,
-                                 [s.name for s in seats], result.memo_path)
+                                 [s.name for s in seats], result.memo_path,
+                                 pair_id=pair_id, arm=arm,
+                                 lead=winner.seat if winner else "")
         self._track_lead_action(result)
         self._persist(result)
         return result

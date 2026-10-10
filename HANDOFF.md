@@ -1,3 +1,32 @@
+HANDOFF — compile branch, 2026-10-10 (read this block, then the 2026-09-01 state below)
+
+Branch `feat/compile` (worktree `.claude/worktrees/compile`), NOT on main, NOT merged. Main is
+untouched so the launchd executor keeps calling the editable install. 0.4.0. Suite green.
+
+What landed (design `docs/compile-design.md`; plan `docs/superpowers/plans/2026-10-10-compile.md`;
+ledger of rulings `docs/sessions/2026-10-10-compile-ledger.md`):
+`cad compile [--write]` · `cad compile manifest|propose|install|uninstall|status` ·
+`cad eval loadout "Q"` / `cad eval loadout report` · doctor rows `profile`, `loadout` · brief clock.
+
+ALEX'S ACTIONS, in order (nothing below is done; the clock has not started):
+1. Review and ship the PR. The 2026-08-19 USER.md is now generated from seats/PROFILE.json
+   (same numbers, same contract block, prose regrouped); read the diff of seats/USER.md once.
+2. Settle the 8 open council runs first (`cad ledger runs`). Decision 17: the loadout
+   baseline is measured against a ledger of settled runs, not priors. `--unexecuted` for
+   advice never tried.
+3. Add `TYPESAFE_API_KEY=…` to `~/.caduceus/env` (never printed, never logged). Know what it
+   turns on: every live council question's TEXT is sent to TypeSafe for domain classification;
+   context files are not sent; mock/dry runs never call it. Without the key everything works on
+   the keyword classifier and a hand-written loadout table.
+4. `cad compile manifest && cad compile propose` (≈ under a dollar for the whole shelf; cached),
+   edit `seats/LOADOUT-PROPOSAL.json` into `seats/LOADOUT.json`, `cad compile install`. That
+   starts the 14-day clock.
+5. For real decisions during those 14 days: `cad eval loadout "…" --context-file …`, then settle
+   BOTH run ids when reality reports back. Day 14: `cad eval loadout report` → PASS keeps
+   loadouts, PARK means `cad compile uninstall`.
+Before any compiled council serves someone other than Alex: run the Jev steerability probe E2
+(hq/outputs/jev-usage-outline-2026-09-27-v2.md); hostile-content steerability is untested.
+
 HANDOFF — Caduceus state as of 2026-09-01
 Read this first. It is the single source of truth for where things stand. Previous handoff was 2026-08-19 evening and went a full week stale; several of its claims were wrong by the time it was re-read (everything it listed as "unpushed" had shipped). Dates below are absolute for that reason.
 
