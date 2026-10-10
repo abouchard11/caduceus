@@ -1,0 +1,1809 @@
+{
+ "schema": "caduceus.loadout.v1",
+ "cast_sha256": "dea689dd2c2cb7284d166ea4058a45468b20a7dfcbc8f0aa917bbb3326454516",
+ "per": 5,
+ "generated": "2026-10-10T18:01:29",
+ "seats": {
+  "forge": {
+   "implementation": [
+    {
+     "name": "verification-before-completion",
+     "score": 3.94,
+     "confidence": 0.96,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "systematic-debugging",
+     "score": 3.89,
+     "confidence": 0.92,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/systematic-debugging/SKILL.md"
+    },
+    {
+     "name": "fix-verify-loop",
+     "score": 3.86,
+     "confidence": 0.9,
+     "path": "/Users/sashalabbe/projects/caduceus/.claude/worktrees/compile/skills/fix-verify-loop/SKILL.md"
+    },
+    {
+     "name": "karpathy-guidelines",
+     "score": 3.84,
+     "confidence": 0.88,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/karpathy-skills/andrej-karpathy-skills/1.0.0/skills/karpathy-guidelines/SKILL.md"
+    },
+    {
+     "name": "review-hog-perspective-logic-correctness",
+     "score": 3.83,
+     "confidence": 0.87,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/review-hog-perspective-logic-correctness/SKILL.md"
+    }
+   ],
+   "review": [
+    {
+     "name": "verification-before-completion",
+     "score": 3.87,
+     "confidence": 0.92,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "systematic-debugging",
+     "score": 3.87,
+     "confidence": 0.89,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/systematic-debugging/SKILL.md"
+    },
+    {
+     "name": "qa",
+     "score": 3.85,
+     "confidence": 0.88,
+     "path": "/Users/sashalabbe/.claude/skills/gstack-qa/SKILL.md"
+    },
+    {
+     "name": "gsd-audit-fix",
+     "score": 3.84,
+     "confidence": 0.88,
+     "path": "/Users/sashalabbe/.claude/skills/gsd-audit-fix/SKILL.md"
+    },
+    {
+     "name": "gsd-ns-review",
+     "score": 3.83,
+     "confidence": 0.85,
+     "path": "/Users/sashalabbe/.claude/skills/gsd-ns-review/SKILL.md"
+    }
+   ],
+   "types": [
+    {
+     "name": "verification-before-completion",
+     "score": 3.69,
+     "confidence": 0.77,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "review-hog-perspective-contracts-security",
+     "score": 3.57,
+     "confidence": 0.67,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/review-hog-perspective-contracts-security/SKILL.md"
+    },
+    {
+     "name": "receiving-code-review",
+     "score": 3.47,
+     "confidence": 0.57,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/receiving-code-review/SKILL.md"
+    },
+    {
+     "name": "requesting-code-review",
+     "score": 3.42,
+     "confidence": 0.49,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/requesting-code-review/SKILL.md"
+    },
+    {
+     "name": "systematic-debugging",
+     "score": 3.39,
+     "confidence": 0.56,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/systematic-debugging/SKILL.md"
+    }
+   ],
+   "testing": [
+    {
+     "name": "verification-before-completion",
+     "score": 3.92,
+     "confidence": 0.94,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "test-driven-development",
+     "score": 3.82,
+     "confidence": 0.85,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/test-driven-development/SKILL.md"
+    },
+    {
+     "name": "testing-assistant",
+     "score": 3.71,
+     "confidence": 0.77,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-patent-creator/claude-patent-creator-standalone/1.0.0/skills/testing-assistant/SKILL.md"
+    },
+    {
+     "name": "gsd-add-tests",
+     "score": 3.66,
+     "confidence": 0.72,
+     "path": "/Users/sashalabbe/.claude/skills/gsd-add-tests/SKILL.md"
+    },
+    {
+     "name": "gstack-qa",
+     "score": 3.66,
+     "confidence": 0.72,
+     "path": "/Users/sashalabbe/.claude/skills/gstack/qa/SKILL.md"
+    }
+   ],
+   "security": [
+    {
+     "name": "verification-before-completion",
+     "score": 3.9,
+     "confidence": 0.93,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "auth",
+     "score": 3.74,
+     "confidence": 0.78,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/vercel/0.49.2/skills/auth/SKILL.md"
+    },
+    {
+     "name": "receiving-code-review",
+     "score": 3.71,
+     "confidence": 0.77,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/receiving-code-review/SKILL.md"
+    },
+    {
+     "name": "review-hog-perspective-contracts-security",
+     "score": 3.7,
+     "confidence": 0.73,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/review-hog-perspective-contracts-security/SKILL.md"
+    },
+    {
+     "name": "requesting-code-review",
+     "score": 3.65,
+     "confidence": 0.69,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/requesting-code-review/SKILL.md"
+    }
+   ],
+   "research": [
+    {
+     "name": "firecrawl-search",
+     "score": 3.88,
+     "confidence": 0.92,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl-search/SKILL.md"
+    },
+    {
+     "name": "firecrawl",
+     "score": 3.81,
+     "confidence": 0.85,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl/SKILL.md"
+    },
+    {
+     "name": "autoresearch",
+     "score": 3.7,
+     "confidence": 0.72,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-obsidian-marketplace/claude-obsidian/1.6.0/skills/autoresearch/SKILL.md"
+    },
+    {
+     "name": "firecrawl-research-index",
+     "score": 3.68,
+     "confidence": 0.72,
+     "path": "/Users/sashalabbe/.hermes/skills/firecrawl-research-index/SKILL.md"
+    },
+    {
+     "name": "firecrawl-research-papers",
+     "score": 3.63,
+     "confidence": 0.68,
+     "path": "/Users/sashalabbe/.hermes/skills/firecrawl-research-papers/SKILL.md"
+    }
+   ],
+   "strategy": [
+    {
+     "name": "one-three-one-rule",
+     "score": 3.24,
+     "confidence": 0.65,
+     "path": "/Users/sashalabbe/.hermes/skills/communication/one-three-one-rule/SKILL.md"
+    },
+    {
+     "name": "firecrawl-competitive-intel",
+     "score": 3.13,
+     "confidence": 0.79,
+     "path": "/Users/sashalabbe/.hermes/skills/firecrawl-competitive-intel/SKILL.md"
+    },
+    {
+     "name": "think",
+     "score": 3.04,
+     "confidence": 0.65,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-obsidian-marketplace/claude-obsidian/1.6.0/skills/think/SKILL.md"
+    },
+    {
+     "name": "brainstorming",
+     "score": 3.02,
+     "confidence": 0.48,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/brainstorming/SKILL.md"
+    },
+    {
+     "name": "gstack-plan-ceo-review",
+     "score": 3.01,
+     "confidence": 0.56,
+     "path": "/Users/sashalabbe/.claude/skills/gstack/plan-ceo-review/SKILL.md"
+    }
+   ],
+   "comms": [
+    {
+     "name": "sturm-kilo",
+     "score": 3.45,
+     "confidence": 0.54,
+     "path": "/Users/sashalabbe/.claude/skills/sturm-kilo/SKILL.md"
+    },
+    {
+     "name": "humanizer",
+     "score": 3.32,
+     "confidence": 0.66,
+     "path": "/Users/sashalabbe/.hermes/skills/creative/humanizer/SKILL.md"
+    },
+    {
+     "name": "writing-skills",
+     "score": 3.16,
+     "confidence": 0.31,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/writing-skills/SKILL.md"
+    },
+    {
+     "name": "sturm-signal",
+     "score": 3.05,
+     "confidence": 0.63,
+     "path": "/Users/sashalabbe/.claude/skills/sturm-signal/SKILL.md"
+    },
+    {
+     "name": "firecrawl-lead-research",
+     "score": 2.93,
+     "confidence": 0.69,
+     "path": "/Users/sashalabbe/.hermes/skills/firecrawl-lead-research/SKILL.md"
+    }
+   ],
+   "infra": [
+    {
+     "name": "verification-before-completion",
+     "score": 3.87,
+     "confidence": 0.89,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "fix-verify-loop",
+     "score": 3.76,
+     "confidence": 0.82,
+     "path": "/Users/sashalabbe/projects/caduceus/.claude/worktrees/compile/skills/fix-verify-loop/SKILL.md"
+    },
+    {
+     "name": "systematic-debugging",
+     "score": 3.73,
+     "confidence": 0.78,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/systematic-debugging/SKILL.md"
+    },
+    {
+     "name": "graphiti-local-ops",
+     "score": 3.73,
+     "confidence": 0.76,
+     "path": "/Users/sashalabbe/.hermes/skills/devops/graphiti-local-ops/SKILL.md"
+    },
+    {
+     "name": "graphiti-ops",
+     "score": 3.69,
+     "confidence": 0.76,
+     "path": "/Users/sashalabbe/.hermes/skills/devops/graphiti-ops/SKILL.md"
+    }
+   ],
+   "data": [
+    {
+     "name": "verification-before-completion",
+     "score": 3.85,
+     "confidence": 0.88,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "supabase-postgres-best-practices",
+     "score": 3.8,
+     "confidence": 0.84,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/supabase/0.1.15/skills/supabase-postgres-best-practices/SKILL.md"
+    },
+    {
+     "name": "review-hog-perspective-logic-correctness",
+     "score": 3.76,
+     "confidence": 0.82,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/review-hog-perspective-logic-correctness/SKILL.md"
+    },
+    {
+     "name": "systematic-debugging",
+     "score": 3.7,
+     "confidence": 0.76,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/systematic-debugging/SKILL.md"
+    },
+    {
+     "name": "authoring-data-quality-checks",
+     "score": 3.6,
+     "confidence": 0.68,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/authoring-data-quality-checks/SKILL.md"
+    }
+   ],
+   "general": [
+    {
+     "name": "verification-before-completion",
+     "score": 3.77,
+     "confidence": 0.77,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "spec",
+     "score": 3.68,
+     "confidence": 0.72,
+     "path": "/Users/sashalabbe/.claude/skills/gstack-spec/SKILL.md"
+    },
+    {
+     "name": "gstack-spec",
+     "score": 3.62,
+     "confidence": 0.69,
+     "path": "/Users/sashalabbe/.claude/skills/gstack/spec/SKILL.md"
+    },
+    {
+     "name": "test-driven-development",
+     "score": 3.51,
+     "confidence": 0.58,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/test-driven-development/SKILL.md"
+    },
+    {
+     "name": "requesting-code-review",
+     "score": 3.47,
+     "confidence": 0.56,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/requesting-code-review/SKILL.md"
+    }
+   ]
+  },
+  "finisher": {
+   "implementation": [
+    {
+     "name": "verification-before-completion",
+     "score": 3.99,
+     "confidence": 0.99,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "verification",
+     "score": 3.88,
+     "confidence": 0.9,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/vercel/0.49.2/skills/verification/SKILL.md"
+    },
+    {
+     "name": "fix-verify-loop",
+     "score": 3.85,
+     "confidence": 0.86,
+     "path": "/Users/sashalabbe/projects/caduceus/.claude/worktrees/compile/skills/fix-verify-loop/SKILL.md"
+    },
+    {
+     "name": "requesting-code-review",
+     "score": 3.82,
+     "confidence": 0.87,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/requesting-code-review/SKILL.md"
+    },
+    {
+     "name": "review-hog-perspective-logic-correctness",
+     "score": 3.81,
+     "confidence": 0.86,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/review-hog-perspective-logic-correctness/SKILL.md"
+    }
+   ],
+   "review": [
+    {
+     "name": "verification-before-completion",
+     "score": 3.98,
+     "confidence": 0.99,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "gsd-audit-uat",
+     "score": 3.93,
+     "confidence": 0.94,
+     "path": "/Users/sashalabbe/.claude/skills/gsd-audit-uat/SKILL.md"
+    },
+    {
+     "name": "brief-audit",
+     "score": 3.92,
+     "confidence": 0.95,
+     "path": "/Users/sashalabbe/.hermes/skills/software-development/brief-audit/SKILL.md"
+    },
+    {
+     "name": "gsd-audit-milestone",
+     "score": 3.88,
+     "confidence": 0.91,
+     "path": "/Users/sashalabbe/.claude/skills/gsd-audit-milestone/SKILL.md"
+    },
+    {
+     "name": "verification",
+     "score": 3.88,
+     "confidence": 0.91,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/vercel/0.49.2/skills/verification/SKILL.md"
+    }
+   ],
+   "types": [
+    {
+     "name": "verification-before-completion",
+     "score": 3.89,
+     "confidence": 0.92,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "review-hog-perspective-contracts-security",
+     "score": 3.7,
+     "confidence": 0.75,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/review-hog-perspective-contracts-security/SKILL.md"
+    },
+    {
+     "name": "receiving-code-review",
+     "score": 3.57,
+     "confidence": 0.65,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/receiving-code-review/SKILL.md"
+    },
+    {
+     "name": "requesting-code-review",
+     "score": 3.56,
+     "confidence": 0.64,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/requesting-code-review/SKILL.md"
+    },
+    {
+     "name": "systematic-debugging",
+     "score": 3.44,
+     "confidence": 0.56,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/systematic-debugging/SKILL.md"
+    }
+   ],
+   "testing": [
+    {
+     "name": "verification-before-completion",
+     "score": 3.98,
+     "confidence": 0.99,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "test-driven-development",
+     "score": 3.73,
+     "confidence": 0.77,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/test-driven-development/SKILL.md"
+    },
+    {
+     "name": "systematic-debugging",
+     "score": 3.69,
+     "confidence": 0.76,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/systematic-debugging/SKILL.md"
+    },
+    {
+     "name": "investigating-ci-failures",
+     "score": 3.57,
+     "confidence": 0.64,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/investigating-ci-failures/SKILL.md"
+    },
+    {
+     "name": "gsd-eval-review",
+     "score": 3.56,
+     "confidence": 0.62,
+     "path": "/Users/sashalabbe/.claude/skills/gsd-eval-review/SKILL.md"
+    }
+   ],
+   "security": [
+    {
+     "name": "verification-before-completion",
+     "score": 3.97,
+     "confidence": 0.98,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "review-hog-perspective-contracts-security",
+     "score": 3.7,
+     "confidence": 0.75,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/review-hog-perspective-contracts-security/SKILL.md"
+    },
+    {
+     "name": "receiving-code-review",
+     "score": 3.68,
+     "confidence": 0.77,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/receiving-code-review/SKILL.md"
+    },
+    {
+     "name": "requesting-code-review",
+     "score": 3.66,
+     "confidence": 0.72,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/requesting-code-review/SKILL.md"
+    },
+    {
+     "name": "gsd-secure-phase",
+     "score": 3.65,
+     "confidence": 0.72,
+     "path": "/Users/sashalabbe/.claude/skills/gsd-secure-phase/SKILL.md"
+    }
+   ],
+   "research": [
+    {
+     "name": "firecrawl-search",
+     "score": 3.95,
+     "confidence": 0.97,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl-search/SKILL.md"
+    },
+    {
+     "name": "grounded-citations",
+     "score": 3.95,
+     "confidence": 0.97,
+     "path": "/Users/sashalabbe/.hermes/skills/research/grounded-citations/SKILL.md"
+    },
+    {
+     "name": "firecrawl",
+     "score": 3.88,
+     "confidence": 0.92,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl/SKILL.md"
+    },
+    {
+     "name": "firecrawl-research-papers",
+     "score": 3.87,
+     "confidence": 0.9,
+     "path": "/Users/sashalabbe/.hermes/skills/firecrawl-research-papers/SKILL.md"
+    },
+    {
+     "name": "firecrawl-research-index",
+     "score": 3.82,
+     "confidence": 0.87,
+     "path": "/Users/sashalabbe/.hermes/skills/firecrawl-research-index/SKILL.md"
+    }
+   ],
+   "strategy": [
+    {
+     "name": "meeting-action-items",
+     "score": 3.54,
+     "confidence": 0.62,
+     "path": "/Users/sashalabbe/.hermes/skills/productivity/meeting-action-items/SKILL.md"
+    },
+    {
+     "name": "gsd-phase",
+     "score": 3.4,
+     "confidence": 0.49,
+     "path": "/Users/sashalabbe/.claude/skills/gsd-phase/SKILL.md"
+    },
+    {
+     "name": "gsd-plan-phase",
+     "score": 3.38,
+     "confidence": 0.47,
+     "path": "/Users/sashalabbe/.claude/skills/gsd-plan-phase/SKILL.md"
+    },
+    {
+     "name": "record-graphiti-memory",
+     "score": 3.34,
+     "confidence": 0.47,
+     "path": "/Users/sashalabbe/.claude/skills/record-graphiti-memory/SKILL.md"
+    },
+    {
+     "name": "firecrawl-competitive-intel",
+     "score": 3.25,
+     "confidence": 0.6,
+     "path": "/Users/sashalabbe/.hermes/skills/firecrawl-competitive-intel/SKILL.md"
+    }
+   ],
+   "comms": [
+    {
+     "name": "sturm-kilo",
+     "score": 3.55,
+     "confidence": 0.62,
+     "path": "/Users/sashalabbe/.claude/skills/sturm-kilo/SKILL.md"
+    },
+    {
+     "name": "gsd-capture",
+     "score": 3.06,
+     "confidence": 0.22,
+     "path": "/Users/sashalabbe/.claude/skills/gsd-capture/SKILL.md"
+    },
+    {
+     "name": "writing-skills",
+     "score": 2.98,
+     "confidence": 0.39,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/writing-skills/SKILL.md"
+    },
+    {
+     "name": "google-workspace",
+     "score": 2.93,
+     "confidence": 0.48,
+     "path": "/Users/sashalabbe/.hermes/skills/productivity/google-workspace/SKILL.md"
+    },
+    {
+     "name": "sturm-hunter",
+     "score": 2.9,
+     "confidence": 0.56,
+     "path": "/Users/sashalabbe/.claude/skills/sturm-hunter/SKILL.md"
+    }
+   ],
+   "infra": [
+    {
+     "name": "verification-before-completion",
+     "score": 3.98,
+     "confidence": 0.99,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "fix-verify-loop",
+     "score": 3.84,
+     "confidence": 0.89,
+     "path": "/Users/sashalabbe/projects/caduceus/.claude/worktrees/compile/skills/fix-verify-loop/SKILL.md"
+    },
+    {
+     "name": "daily-compounding",
+     "score": 3.76,
+     "confidence": 0.81,
+     "path": "/Users/sashalabbe/.hermes/skills/software-development/daily-compounding/SKILL.md"
+    },
+    {
+     "name": "systematic-debugging",
+     "score": 3.74,
+     "confidence": 0.8,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/systematic-debugging/SKILL.md"
+    },
+    {
+     "name": "graphiti-ops",
+     "score": 3.52,
+     "confidence": 0.59,
+     "path": "/Users/sashalabbe/.hermes/skills/devops/graphiti-ops/SKILL.md"
+    }
+   ],
+   "data": [
+    {
+     "name": "verification-before-completion",
+     "score": 3.98,
+     "confidence": 0.98,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "review-hog-perspective-logic-correctness",
+     "score": 3.77,
+     "confidence": 0.83,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/review-hog-perspective-logic-correctness/SKILL.md"
+    },
+    {
+     "name": "supabase-postgres-best-practices",
+     "score": 3.76,
+     "confidence": 0.81,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/supabase/0.1.15/skills/supabase-postgres-best-practices/SKILL.md"
+    },
+    {
+     "name": "systematic-debugging",
+     "score": 3.71,
+     "confidence": 0.77,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/systematic-debugging/SKILL.md"
+    },
+    {
+     "name": "authoring-data-quality-checks",
+     "score": 3.52,
+     "confidence": 0.6,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/authoring-data-quality-checks/SKILL.md"
+    }
+   ],
+   "general": [
+    {
+     "name": "verification-before-completion",
+     "score": 3.93,
+     "confidence": 0.93,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "meeting-action-items",
+     "score": 3.68,
+     "confidence": 0.72,
+     "path": "/Users/sashalabbe/.hermes/skills/productivity/meeting-action-items/SKILL.md"
+    },
+    {
+     "name": "record-graphiti-memory",
+     "score": 3.64,
+     "confidence": 0.71,
+     "path": "/Users/sashalabbe/.claude/skills/record-graphiti-memory/SKILL.md"
+    },
+    {
+     "name": "spec",
+     "score": 3.5,
+     "confidence": 0.59,
+     "path": "/Users/sashalabbe/.claude/skills/gstack-spec/SKILL.md"
+    },
+    {
+     "name": "gsd-capture",
+     "score": 3.48,
+     "confidence": 0.58,
+     "path": "/Users/sashalabbe/.claude/skills/gsd-capture/SKILL.md"
+    }
+   ]
+  },
+  "recon": {
+   "implementation": [
+    {
+     "name": "firecrawl-developer-index",
+     "score": 3.5,
+     "confidence": 0.59,
+     "path": "/Users/sashalabbe/.hermes/skills/firecrawl-developer-index/SKILL.md"
+    },
+    {
+     "name": "systematic-debugging",
+     "score": 3.01,
+     "confidence": 0.16,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/systematic-debugging/SKILL.md"
+    },
+    {
+     "name": "understand-chat",
+     "score": 2.93,
+     "confidence": 0.44,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/understand-anything/understand-anything/2.7.7/skills/understand-chat/SKILL.md"
+    },
+    {
+     "name": "verification-before-completion",
+     "score": 2.92,
+     "confidence": 0.12,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "firecrawl-build",
+     "score": 2.92,
+     "confidence": 0.07,
+     "path": "/Users/sashalabbe/.hermes/skills/firecrawl-build/SKILL.md"
+    }
+   ],
+   "review": [
+    {
+     "name": "grounded-citations",
+     "score": 3.82,
+     "confidence": 0.85,
+     "path": "/Users/sashalabbe/.hermes/skills/research/grounded-citations/SKILL.md"
+    },
+    {
+     "name": "verification-before-completion",
+     "score": 3.76,
+     "confidence": 0.81,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "brief-audit",
+     "score": 3.64,
+     "confidence": 0.7,
+     "path": "/Users/sashalabbe/.hermes/skills/software-development/brief-audit/SKILL.md"
+    },
+    {
+     "name": "gsd-audit-uat",
+     "score": 3.49,
+     "confidence": 0.58,
+     "path": "/Users/sashalabbe/.claude/skills/gsd-audit-uat/SKILL.md"
+    },
+    {
+     "name": "systematic-debugging",
+     "score": 3.38,
+     "confidence": 0.47,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/systematic-debugging/SKILL.md"
+    }
+   ],
+   "types": [
+    {
+     "name": "verification-before-completion",
+     "score": 3.06,
+     "confidence": 0.39,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "firecrawl-developer-index",
+     "score": 3.04,
+     "confidence": 0.61,
+     "path": "/Users/sashalabbe/.hermes/skills/firecrawl-developer-index/SKILL.md"
+    },
+    {
+     "name": "firecrawl-search",
+     "score": 3.02,
+     "confidence": 0.52,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl-search/SKILL.md"
+    },
+    {
+     "name": "review-hog-perspective-contracts-security",
+     "score": 2.88,
+     "confidence": 0.37,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/review-hog-perspective-contracts-security/SKILL.md"
+    },
+    {
+     "name": "firecrawl",
+     "score": 2.87,
+     "confidence": 0.57,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl/SKILL.md"
+    }
+   ],
+   "testing": [
+    {
+     "name": "firecrawl",
+     "score": 3.28,
+     "confidence": 0.55,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl/SKILL.md"
+    },
+    {
+     "name": "firecrawl-search",
+     "score": 3.26,
+     "confidence": 0.5,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl-search/SKILL.md"
+    },
+    {
+     "name": "investigating-ci-failures",
+     "score": 2.95,
+     "confidence": 0.44,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/investigating-ci-failures/SKILL.md"
+    },
+    {
+     "name": "systematic-debugging",
+     "score": 2.92,
+     "confidence": 0.38,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/systematic-debugging/SKILL.md"
+    },
+    {
+     "name": "firecrawl-developer-index",
+     "score": 2.81,
+     "confidence": 0.61,
+     "path": "/Users/sashalabbe/.hermes/skills/firecrawl-developer-index/SKILL.md"
+    }
+   ],
+   "security": [
+    {
+     "name": "grounded-citations",
+     "score": 3.51,
+     "confidence": 0.6,
+     "path": "/Users/sashalabbe/.hermes/skills/research/grounded-citations/SKILL.md"
+    },
+    {
+     "name": "verification-before-completion",
+     "score": 3.47,
+     "confidence": 0.57,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "firecrawl",
+     "score": 3.23,
+     "confidence": 0.55,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl/SKILL.md"
+    },
+    {
+     "name": "browse",
+     "score": 3.13,
+     "confidence": 0.61,
+     "path": "/Users/sashalabbe/.claude/skills/gstack-browse/SKILL.md"
+    },
+    {
+     "name": "firecrawl-search",
+     "score": 3.13,
+     "confidence": 0.51,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl-search/SKILL.md"
+    }
+   ],
+   "research": [
+    {
+     "name": "grounded-citations",
+     "score": 3.95,
+     "confidence": 0.97,
+     "path": "/Users/sashalabbe/.hermes/skills/research/grounded-citations/SKILL.md"
+    },
+    {
+     "name": "firecrawl",
+     "score": 3.84,
+     "confidence": 0.88,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl/SKILL.md"
+    },
+    {
+     "name": "firecrawl-search",
+     "score": 3.82,
+     "confidence": 0.85,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl-search/SKILL.md"
+    },
+    {
+     "name": "firecrawl-research-papers",
+     "score": 3.7,
+     "confidence": 0.74,
+     "path": "/Users/sashalabbe/.hermes/skills/firecrawl-research-papers/SKILL.md"
+    },
+    {
+     "name": "epc-search",
+     "score": 3.64,
+     "confidence": 0.68,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-patent-creator/claude-patent-creator-standalone/1.0.0/skills/epc-search/SKILL.md"
+    }
+   ],
+   "strategy": [
+    {
+     "name": "firecrawl-competitive-intel",
+     "score": 3.33,
+     "confidence": 0.62,
+     "path": "/Users/sashalabbe/.hermes/skills/firecrawl-competitive-intel/SKILL.md"
+    },
+    {
+     "name": "firecrawl",
+     "score": 3.31,
+     "confidence": 0.46,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl/SKILL.md"
+    },
+    {
+     "name": "firecrawl-search",
+     "score": 3.11,
+     "confidence": 0.56,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl-search/SKILL.md"
+    },
+    {
+     "name": "firecrawl-scrape",
+     "score": 3.01,
+     "confidence": 0.55,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl-scrape/SKILL.md"
+    },
+    {
+     "name": "firecrawl-build",
+     "score": 2.96,
+     "confidence": 0.47,
+     "path": "/Users/sashalabbe/.hermes/skills/firecrawl-build/SKILL.md"
+    }
+   ],
+   "comms": [
+    {
+     "name": "firecrawl-lead-research",
+     "score": 2.94,
+     "confidence": 0.55,
+     "path": "/Users/sashalabbe/.hermes/skills/firecrawl-lead-research/SKILL.md"
+    },
+    {
+     "name": "wiki-ingest",
+     "score": 2.89,
+     "confidence": 0.49,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-obsidian-marketplace/claude-obsidian/1.6.0/skills/wiki-ingest/SKILL.md"
+    },
+    {
+     "name": "evidence-led-outbound",
+     "score": 2.81,
+     "confidence": 0.52,
+     "path": "/Users/sashalabbe/.hermes/skills/productivity/evidence-led-outbound/SKILL.md"
+    },
+    {
+     "name": "qmd",
+     "score": 2.76,
+     "confidence": 0.55,
+     "path": "/Users/sashalabbe/.hermes/skills/research/qmd/SKILL.md"
+    },
+    {
+     "name": "xurl",
+     "score": 2.71,
+     "confidence": 0.64,
+     "path": "/Users/sashalabbe/.hermes/skills/social-media/xurl/SKILL.md"
+    }
+   ],
+   "infra": [
+    {
+     "name": "verification-before-completion",
+     "score": 3.13,
+     "confidence": 0.28,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "firecrawl-search",
+     "score": 3.12,
+     "confidence": 0.51,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl-search/SKILL.md"
+    },
+    {
+     "name": "firecrawl",
+     "score": 3.06,
+     "confidence": 0.59,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl/SKILL.md"
+    },
+    {
+     "name": "firecrawl-scrape",
+     "score": 3.05,
+     "confidence": 0.53,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl-scrape/SKILL.md"
+    },
+    {
+     "name": "grounded-citations",
+     "score": 2.98,
+     "confidence": 0.15,
+     "path": "/Users/sashalabbe/.hermes/skills/research/grounded-citations/SKILL.md"
+    }
+   ],
+   "data": [
+    {
+     "name": "verification-before-completion",
+     "score": 3.4,
+     "confidence": 0.49,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "modeling-revenue-metrics",
+     "score": 3.03,
+     "confidence": 0.57,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/modeling-revenue-metrics/SKILL.md"
+    },
+    {
+     "name": "signals-scout-data-warehouse",
+     "score": 3.01,
+     "confidence": 0.47,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/signals-scout-data-warehouse/SKILL.md"
+    },
+    {
+     "name": "systematic-debugging",
+     "score": 3.0,
+     "confidence": 0.51,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/systematic-debugging/SKILL.md"
+    },
+    {
+     "name": "querying-posthog-data",
+     "score": 2.95,
+     "confidence": 0.36,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/querying-posthog-data/SKILL.md"
+    }
+   ],
+   "general": [
+    {
+     "name": "firecrawl",
+     "score": 3.7,
+     "confidence": 0.74,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl/SKILL.md"
+    },
+    {
+     "name": "firecrawl-search",
+     "score": 3.6,
+     "confidence": 0.68,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl-search/SKILL.md"
+    },
+    {
+     "name": "grounded-citations",
+     "score": 3.57,
+     "confidence": 0.64,
+     "path": "/Users/sashalabbe/.hermes/skills/research/grounded-citations/SKILL.md"
+    },
+    {
+     "name": "firecrawl-scrape",
+     "score": 3.49,
+     "confidence": 0.58,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl-scrape/SKILL.md"
+    },
+    {
+     "name": "firecrawl-build-search",
+     "score": 3.27,
+     "confidence": 0.38,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl-build-search/SKILL.md"
+    }
+   ]
+  },
+  "sparring": {
+   "implementation": [
+    {
+     "name": "review-hog-perspective-logic-correctness",
+     "score": 3.75,
+     "confidence": 0.77,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/review-hog-perspective-logic-correctness/SKILL.md"
+    },
+    {
+     "name": "review-hog-validation-criteria",
+     "score": 3.54,
+     "confidence": 0.62,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/review-hog-validation-criteria/SKILL.md"
+    },
+    {
+     "name": "gsd-debug",
+     "score": 3.52,
+     "confidence": 0.62,
+     "path": "/Users/sashalabbe/.claude/skills/gsd-debug/SKILL.md"
+    },
+    {
+     "name": "gstack-investigate",
+     "score": 3.52,
+     "confidence": 0.58,
+     "path": "/Users/sashalabbe/.claude/skills/gstack/investigate/SKILL.md"
+    },
+    {
+     "name": "investigate",
+     "score": 3.51,
+     "confidence": 0.59,
+     "path": "/Users/sashalabbe/.claude/skills/gstack-investigate/SKILL.md"
+    }
+   ],
+   "review": [
+    {
+     "name": "verification-before-completion",
+     "score": 3.9,
+     "confidence": 0.91,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "review-hog-validation-criteria",
+     "score": 3.84,
+     "confidence": 0.85,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/review-hog-validation-criteria/SKILL.md"
+    },
+    {
+     "name": "brief-audit",
+     "score": 3.82,
+     "confidence": 0.84,
+     "path": "/Users/sashalabbe/.hermes/skills/software-development/brief-audit/SKILL.md"
+    },
+    {
+     "name": "review-hog-perspective-logic-correctness",
+     "score": 3.8,
+     "confidence": 0.84,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/review-hog-perspective-logic-correctness/SKILL.md"
+    },
+    {
+     "name": "systematic-debugging",
+     "score": 3.79,
+     "confidence": 0.81,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/systematic-debugging/SKILL.md"
+    }
+   ],
+   "types": [
+    {
+     "name": "review-hog-perspective-contracts-security",
+     "score": 3.61,
+     "confidence": 0.67,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/review-hog-perspective-contracts-security/SKILL.md"
+    },
+    {
+     "name": "verification-before-completion",
+     "score": 3.24,
+     "confidence": 0.38,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "receiving-code-review",
+     "score": 3.14,
+     "confidence": 0.46,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/receiving-code-review/SKILL.md"
+    },
+    {
+     "name": "review-hog-validation-criteria",
+     "score": 3.13,
+     "confidence": 0.47,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/review-hog-validation-criteria/SKILL.md"
+    },
+    {
+     "name": "guidance",
+     "score": 2.94,
+     "confidence": 0.48,
+     "path": "/Users/sashalabbe/.hermes/skills/mlops/guidance/SKILL.md"
+    }
+   ],
+   "testing": [
+    {
+     "name": "verification-before-completion",
+     "score": 3.57,
+     "confidence": 0.63,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "qa",
+     "score": 3.33,
+     "confidence": 0.43,
+     "path": "/Users/sashalabbe/.claude/skills/gstack-qa/SKILL.md"
+    },
+    {
+     "name": "gsd-eval-review",
+     "score": 3.32,
+     "confidence": 0.42,
+     "path": "/Users/sashalabbe/.claude/skills/gsd-eval-review/SKILL.md"
+    },
+    {
+     "name": "testing-assistant",
+     "score": 3.22,
+     "confidence": 0.35,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-patent-creator/claude-patent-creator-standalone/1.0.0/skills/testing-assistant/SKILL.md"
+    },
+    {
+     "name": "gstack-qa",
+     "score": 3.2,
+     "confidence": 0.34,
+     "path": "/Users/sashalabbe/.claude/skills/gstack/qa/SKILL.md"
+    }
+   ],
+   "security": [
+    {
+     "name": "review-hog-perspective-contracts-security",
+     "score": 3.69,
+     "confidence": 0.72,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/review-hog-perspective-contracts-security/SKILL.md"
+    },
+    {
+     "name": "verification-before-completion",
+     "score": 3.55,
+     "confidence": 0.63,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "cso",
+     "score": 3.35,
+     "confidence": 0.47,
+     "path": "/Users/sashalabbe/.claude/skills/gstack-cso/SKILL.md"
+    },
+    {
+     "name": "sturm-neural-audit",
+     "score": 3.29,
+     "confidence": 0.42,
+     "path": "/Users/sashalabbe/.claude/skills/sturm-neural-audit/SKILL.md"
+    },
+    {
+     "name": "gstack-cso",
+     "score": 3.28,
+     "confidence": 0.38,
+     "path": "/Users/sashalabbe/.claude/skills/gstack/cso/SKILL.md"
+    }
+   ],
+   "research": [
+    {
+     "name": "firecrawl-search",
+     "score": 3.7,
+     "confidence": 0.73,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl-search/SKILL.md"
+    },
+    {
+     "name": "firecrawl-research-papers",
+     "score": 3.67,
+     "confidence": 0.72,
+     "path": "/Users/sashalabbe/.hermes/skills/firecrawl-research-papers/SKILL.md"
+    },
+    {
+     "name": "firecrawl-research-index",
+     "score": 3.65,
+     "confidence": 0.69,
+     "path": "/Users/sashalabbe/.hermes/skills/firecrawl-research-index/SKILL.md"
+    },
+    {
+     "name": "grounded-citations",
+     "score": 3.56,
+     "confidence": 0.61,
+     "path": "/Users/sashalabbe/.hermes/skills/research/grounded-citations/SKILL.md"
+    },
+    {
+     "name": "patent-search",
+     "score": 3.52,
+     "confidence": 0.61,
+     "path": "/Users/sashalabbe/.claude/skills/patent-search/SKILL.md"
+    }
+   ],
+   "strategy": [
+    {
+     "name": "one-three-one-rule",
+     "score": 3.02,
+     "confidence": 0.58,
+     "path": "/Users/sashalabbe/.hermes/skills/communication/one-three-one-rule/SKILL.md"
+    },
+    {
+     "name": "gsd-spike",
+     "score": 3.01,
+     "confidence": 0.38,
+     "path": "/Users/sashalabbe/.claude/skills/gsd-spike/SKILL.md"
+    },
+    {
+     "name": "gstack-plan-ceo-review",
+     "score": 2.98,
+     "confidence": 0.48,
+     "path": "/Users/sashalabbe/.claude/skills/gstack/plan-ceo-review/SKILL.md"
+    },
+    {
+     "name": "plan-ceo-review",
+     "score": 2.86,
+     "confidence": 0.47,
+     "path": "/Users/sashalabbe/.claude/skills/gstack-plan-ceo-review/SKILL.md"
+    },
+    {
+     "name": "competitor-analysis",
+     "score": 2.81,
+     "confidence": 0.68,
+     "path": "/Users/sashalabbe/.claude/skills/competitor-analysis/SKILL.md"
+    }
+   ],
+   "comms": [
+    {
+     "name": "one-three-one-rule",
+     "score": 2.62,
+     "confidence": 0.44,
+     "path": "/Users/sashalabbe/.hermes/skills/communication/one-three-one-rule/SKILL.md"
+    },
+    {
+     "name": "gsd-spike",
+     "score": 2.61,
+     "confidence": 0.33,
+     "path": "/Users/sashalabbe/.claude/skills/gsd-spike/SKILL.md"
+    },
+    {
+     "name": "writing-skills",
+     "score": 2.57,
+     "confidence": 0.25,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/writing-skills/SKILL.md"
+    },
+    {
+     "name": "adversarial-ux-test",
+     "score": 2.42,
+     "confidence": 0.32,
+     "path": "/Users/sashalabbe/.hermes/skills/dogfood/adversarial-ux-test/SKILL.md"
+    },
+    {
+     "name": "humanizer",
+     "score": 2.38,
+     "confidence": 0.29,
+     "path": "/Users/sashalabbe/.hermes/skills/creative/humanizer/SKILL.md"
+    }
+   ],
+   "infra": [
+    {
+     "name": "review-hog-perspective-performance-reliability",
+     "score": 3.46,
+     "confidence": 0.53,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/review-hog-perspective-performance-reliability/SKILL.md"
+    },
+    {
+     "name": "investigate",
+     "score": 3.39,
+     "confidence": 0.49,
+     "path": "/Users/sashalabbe/.claude/skills/gstack-investigate/SKILL.md"
+    },
+    {
+     "name": "verification-before-completion",
+     "score": 3.36,
+     "confidence": 0.46,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "graphiti-ops",
+     "score": 3.36,
+     "confidence": 0.45,
+     "path": "/Users/sashalabbe/.hermes/skills/devops/graphiti-ops/SKILL.md"
+    },
+    {
+     "name": "gstack-investigate",
+     "score": 3.31,
+     "confidence": 0.41,
+     "path": "/Users/sashalabbe/.claude/skills/gstack/investigate/SKILL.md"
+    }
+   ],
+   "data": [
+    {
+     "name": "review-hog-perspective-logic-correctness",
+     "score": 3.55,
+     "confidence": 0.62,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/review-hog-perspective-logic-correctness/SKILL.md"
+    },
+    {
+     "name": "verification-before-completion",
+     "score": 3.45,
+     "confidence": 0.53,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "systematic-debugging",
+     "score": 3.08,
+     "confidence": 0.46,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/systematic-debugging/SKILL.md"
+    },
+    {
+     "name": "review-hog-validation-criteria",
+     "score": 3.07,
+     "confidence": 0.46,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/review-hog-validation-criteria/SKILL.md"
+    },
+    {
+     "name": "diagnosing-experiment-results",
+     "score": 3.05,
+     "confidence": 0.64,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/diagnosing-experiment-results/SKILL.md"
+    }
+   ],
+   "general": [
+    {
+     "name": "gsd-spike",
+     "score": 2.86,
+     "confidence": 0.31,
+     "path": "/Users/sashalabbe/.claude/skills/gsd-spike/SKILL.md"
+    },
+    {
+     "name": "verification-before-completion",
+     "score": 2.79,
+     "confidence": 0.29,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "adversarial-ux-test",
+     "score": 2.75,
+     "confidence": 0.4,
+     "path": "/Users/sashalabbe/.hermes/skills/dogfood/adversarial-ux-test/SKILL.md"
+    },
+    {
+     "name": "one-three-one-rule",
+     "score": 2.71,
+     "confidence": 0.55,
+     "path": "/Users/sashalabbe/.hermes/skills/communication/one-three-one-rule/SKILL.md"
+    },
+    {
+     "name": "review-hog-blind-spots-general",
+     "score": 2.64,
+     "confidence": 0.32,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/review-hog-blind-spots-general/SKILL.md"
+    }
+   ]
+  },
+  "envoy": {
+   "implementation": [
+    {
+     "name": "writing-simplified-technical-english",
+     "score": 3.17,
+     "confidence": 0.64,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/writing-simplified-technical-english/SKILL.md"
+    },
+    {
+     "name": "one-three-one-rule",
+     "score": 2.94,
+     "confidence": 0.62,
+     "path": "/Users/sashalabbe/.hermes/skills/communication/one-three-one-rule/SKILL.md"
+    },
+    {
+     "name": "spec",
+     "score": 2.84,
+     "confidence": 0.34,
+     "path": "/Users/sashalabbe/.claude/skills/gstack-spec/SKILL.md"
+    },
+    {
+     "name": "gstack-spec",
+     "score": 2.76,
+     "confidence": 0.36,
+     "path": "/Users/sashalabbe/.claude/skills/gstack/spec/SKILL.md"
+    },
+    {
+     "name": "gsd-spec-phase",
+     "score": 2.75,
+     "confidence": 0.48,
+     "path": "/Users/sashalabbe/.claude/skills/gsd-spec-phase/SKILL.md"
+    }
+   ],
+   "review": [
+    {
+     "name": "writing-skills",
+     "score": 3.76,
+     "confidence": 0.81,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/writing-skills/SKILL.md"
+    },
+    {
+     "name": "verification-before-completion",
+     "score": 3.66,
+     "confidence": 0.69,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "brief-audit",
+     "score": 3.61,
+     "confidence": 0.67,
+     "path": "/Users/sashalabbe/.hermes/skills/software-development/brief-audit/SKILL.md"
+    },
+    {
+     "name": "content-quality-auditor",
+     "score": 3.27,
+     "confidence": 0.53,
+     "path": "/Users/sashalabbe/.claude/skills/content-quality-auditor/SKILL.md"
+    },
+    {
+     "name": "writing-simplified-technical-english",
+     "score": 3.23,
+     "confidence": 0.47,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/writing-simplified-technical-english/SKILL.md"
+    }
+   ],
+   "types": [
+    {
+     "name": "writing-simplified-technical-english",
+     "score": 3.0,
+     "confidence": 0.61,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/writing-simplified-technical-english/SKILL.md"
+    },
+    {
+     "name": "verification-before-completion",
+     "score": 2.89,
+     "confidence": 0.08,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "receiving-code-review",
+     "score": 2.87,
+     "confidence": 0.43,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/receiving-code-review/SKILL.md"
+    },
+    {
+     "name": "spec",
+     "score": 2.75,
+     "confidence": 0.36,
+     "path": "/Users/sashalabbe/.claude/skills/gstack-spec/SKILL.md"
+    },
+    {
+     "name": "gsd-spec-phase",
+     "score": 2.73,
+     "confidence": 0.48,
+     "path": "/Users/sashalabbe/.claude/skills/gsd-spec-phase/SKILL.md"
+    }
+   ],
+   "testing": [
+    {
+     "name": "writing-simplified-technical-english",
+     "score": 3.17,
+     "confidence": 0.66,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/writing-simplified-technical-english/SKILL.md"
+    },
+    {
+     "name": "one-three-one-rule",
+     "score": 2.87,
+     "confidence": 0.55,
+     "path": "/Users/sashalabbe/.hermes/skills/communication/one-three-one-rule/SKILL.md"
+    },
+    {
+     "name": "verification-before-completion",
+     "score": 2.84,
+     "confidence": 0.02,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "gsd-discuss-phase",
+     "score": 2.75,
+     "confidence": 0.32,
+     "path": "/Users/sashalabbe/.claude/skills/gsd-discuss-phase/SKILL.md"
+    },
+    {
+     "name": "receiving-code-review",
+     "score": 2.73,
+     "confidence": 0.44,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/receiving-code-review/SKILL.md"
+    }
+   ],
+   "security": [
+    {
+     "name": "verification-before-completion",
+     "score": 3.32,
+     "confidence": 0.43,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "writing-simplified-technical-english",
+     "score": 3.16,
+     "confidence": 0.62,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/writing-simplified-technical-english/SKILL.md"
+    },
+    {
+     "name": "receiving-code-review",
+     "score": 3.16,
+     "confidence": 0.28,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/receiving-code-review/SKILL.md"
+    },
+    {
+     "name": "cso",
+     "score": 3.02,
+     "confidence": 0.38,
+     "path": "/Users/sashalabbe/.claude/skills/gstack-cso/SKILL.md"
+    },
+    {
+     "name": "gstack-cso",
+     "score": 2.97,
+     "confidence": 0.42,
+     "path": "/Users/sashalabbe/.claude/skills/gstack/cso/SKILL.md"
+    }
+   ],
+   "research": [
+    {
+     "name": "firecrawl-search",
+     "score": 3.87,
+     "confidence": 0.91,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl-search/SKILL.md"
+    },
+    {
+     "name": "firecrawl",
+     "score": 3.75,
+     "confidence": 0.82,
+     "path": "/Users/sashalabbe/.claude/skills/firecrawl/SKILL.md"
+    },
+    {
+     "name": "grounded-citations",
+     "score": 3.59,
+     "confidence": 0.63,
+     "path": "/Users/sashalabbe/.hermes/skills/research/grounded-citations/SKILL.md"
+    },
+    {
+     "name": "autoresearch",
+     "score": 3.49,
+     "confidence": 0.56,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-obsidian-marketplace/claude-obsidian/1.6.0/skills/autoresearch/SKILL.md"
+    },
+    {
+     "name": "parallel-cli",
+     "score": 3.34,
+     "confidence": 0.46,
+     "path": "/Users/sashalabbe/.hermes/skills/research/parallel-cli/SKILL.md"
+    }
+   ],
+   "strategy": [
+    {
+     "name": "one-three-one-rule",
+     "score": 3.51,
+     "confidence": 0.6,
+     "path": "/Users/sashalabbe/.hermes/skills/communication/one-three-one-rule/SKILL.md"
+    },
+    {
+     "name": "brainstorming",
+     "score": 3.25,
+     "confidence": 0.38,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/brainstorming/SKILL.md"
+    },
+    {
+     "name": "project-artifact",
+     "score": 3.21,
+     "confidence": 0.67,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/project-artifact/b1aabc22ac99/skills/project-artifact/SKILL.md"
+    },
+    {
+     "name": "writing-skills",
+     "score": 3.05,
+     "confidence": 0.19,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/writing-skills/SKILL.md"
+    },
+    {
+     "name": "think",
+     "score": 3.02,
+     "confidence": 0.45,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-obsidian-marketplace/claude-obsidian/1.6.0/skills/think/SKILL.md"
+    }
+   ],
+   "comms": [
+    {
+     "name": "humanizer",
+     "score": 3.92,
+     "confidence": 0.94,
+     "path": "/Users/sashalabbe/.hermes/skills/creative/humanizer/SKILL.md"
+    },
+    {
+     "name": "writing-skills",
+     "score": 3.46,
+     "confidence": 0.55,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/writing-skills/SKILL.md"
+    },
+    {
+     "name": "evidence-led-outbound",
+     "score": 3.45,
+     "confidence": 0.55,
+     "path": "/Users/sashalabbe/.hermes/skills/productivity/evidence-led-outbound/SKILL.md"
+    },
+    {
+     "name": "firecrawl-lead-research",
+     "score": 3.24,
+     "confidence": 0.59,
+     "path": "/Users/sashalabbe/.hermes/skills/firecrawl-lead-research/SKILL.md"
+    },
+    {
+     "name": "writing-simplified-technical-english",
+     "score": 3.07,
+     "confidence": 0.58,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/writing-simplified-technical-english/SKILL.md"
+    }
+   ],
+   "infra": [
+    {
+     "name": "writing-simplified-technical-english",
+     "score": 3.23,
+     "confidence": 0.65,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/writing-simplified-technical-english/SKILL.md"
+    },
+    {
+     "name": "one-three-one-rule",
+     "score": 3.05,
+     "confidence": 0.62,
+     "path": "/Users/sashalabbe/.hermes/skills/communication/one-three-one-rule/SKILL.md"
+    },
+    {
+     "name": "verification-before-completion",
+     "score": 3.01,
+     "confidence": 0.2,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "humanizer",
+     "score": 2.77,
+     "confidence": 0.54,
+     "path": "/Users/sashalabbe/.hermes/skills/creative/humanizer/SKILL.md"
+    },
+    {
+     "name": "writing-skills",
+     "score": 2.69,
+     "confidence": 0.27,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/writing-skills/SKILL.md"
+    }
+   ],
+   "data": [
+    {
+     "name": "writing-simplified-technical-english",
+     "score": 3.17,
+     "confidence": 0.68,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/writing-simplified-technical-english/SKILL.md"
+    },
+    {
+     "name": "verification-before-completion",
+     "score": 2.87,
+     "confidence": 0.04,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/verification-before-completion/SKILL.md"
+    },
+    {
+     "name": "one-three-one-rule",
+     "score": 2.86,
+     "confidence": 0.53,
+     "path": "/Users/sashalabbe/.hermes/skills/communication/one-three-one-rule/SKILL.md"
+    },
+    {
+     "name": "writing-skills",
+     "score": 2.72,
+     "confidence": 0.33,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/writing-skills/SKILL.md"
+    },
+    {
+     "name": "evidence-led-outbound",
+     "score": 2.68,
+     "confidence": 0.45,
+     "path": "/Users/sashalabbe/.hermes/skills/productivity/evidence-led-outbound/SKILL.md"
+    }
+   ],
+   "general": [
+    {
+     "name": "humanizer",
+     "score": 3.77,
+     "confidence": 0.83,
+     "path": "/Users/sashalabbe/.hermes/skills/creative/humanizer/SKILL.md"
+    },
+    {
+     "name": "writing-skills",
+     "score": 3.47,
+     "confidence": 0.58,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/writing-skills/SKILL.md"
+    },
+    {
+     "name": "evidence-led-outbound",
+     "score": 3.34,
+     "confidence": 0.43,
+     "path": "/Users/sashalabbe/.hermes/skills/productivity/evidence-led-outbound/SKILL.md"
+    },
+    {
+     "name": "writing-simplified-technical-english",
+     "score": 3.27,
+     "confidence": 0.56,
+     "path": "/Users/sashalabbe/.claude/plugins/cache/claude-plugins-official/posthog/1.1.63/skills/writing-simplified-technical-english/SKILL.md"
+    },
+    {
+     "name": "one-three-one-rule",
+     "score": 3.05,
+     "confidence": 0.57,
+     "path": "/Users/sashalabbe/.hermes/skills/communication/one-three-one-rule/SKILL.md"
+    }
+   ]
+  }
+ },
+ "denied": [
+  "1password",
+  "access-protected-vercel-deployment",
+  "cloudflare-temporary-deploy",
+  "configuring-experiment-rollout",
+  "deployments-cicd",
+  "designing-email-templates",
+  "email-deliverability-diagnosis",
+  "email-inbox-triage",
+  "gsd-settings",
+  "gstack-land-and-deploy",
+  "gstack-setup-deploy",
+  "land-and-deploy",
+  "plugin-settings",
+  "publish-site",
+  "secret-scanner-false-positives",
+  "setting-up-a-custom-rest-source",
+  "setting-up-a-data-warehouse-source",
+  "setting-up-data-catalog",
+  "setting-up-support-slack-locally",
+  "setting-up-warehouse-properties",
+  "setup-deploy",
+  "ship",
+  "signals-scout-customer-analytics-billing-and-usage",
+  "understanding-billing-usage"
+ ],
+ "stopped_reason": "",
+ "errors": [],
+ "calls": 739,
+ "cached": 0,
+ "est_usd": 0.2015
+}
