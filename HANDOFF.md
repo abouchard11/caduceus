@@ -4,7 +4,7 @@ Branch `feat/compile` (worktree `.claude/worktrees/compile`), NOT on main, NOT m
 untouched so the launchd executor keeps calling the editable install. 0.4.0. Suite green.
 
 What landed (design `docs/compile-design.md`; plan `docs/superpowers/plans/2026-10-10-compile.md`;
-ledger of rulings `.superpowers/sdd/2026-10-10-compile/progress.md` in the worktree):
+ledger of rulings `docs/sessions/2026-10-10-compile-ledger.md`):
 `cad compile [--write]` · `cad compile manifest|propose|install|uninstall|status` ·
 `cad eval loadout "Q"` / `cad eval loadout report` · doctor rows `profile`, `loadout` · brief clock.
 
