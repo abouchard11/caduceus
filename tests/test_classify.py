@@ -79,3 +79,23 @@ def test_blend_only_below_threshold():
     lo = classify.Classification("review", {"review": 0.5, "testing": 0.5}, 0.5, "jev")
     assert hi.needs_blend is False and lo.needs_blend is True
     assert classify.BLEND_BELOW == 0.6
+
+
+def test_out_of_range_values_fall_back():
+    bad_conf = StubClient({"domain": {"type": "choice", "choice": "comms", "confidence": 1.7,
+                                      "probabilities": {"comms": 0.9, "general": 0.1}}})
+    assert classify.domain_distribution("rewrite this email", client=bad_conf).source == "keyword"
+    nan = StubClient({"domain": {"type": "choice", "choice": "comms", "confidence": 0.9,
+                                 "probabilities": {"comms": float("nan"), "general": 0.1}}})
+    assert classify.domain_distribution("rewrite this email", client=nan).source == "keyword"
+    over = StubClient({"domain": {"type": "choice", "choice": "comms", "confidence": 0.9,
+                                  "probabilities": {"comms": 1.5, "general": 0.1}}})
+    assert classify.domain_distribution("rewrite this email", client=over).source == "keyword"
+
+
+def test_jev_usage_is_carried_on_the_classification():
+    class Usage(StubClient):
+        usage = {"input_tokens": 500, "output_tokens": 10}
+    c = classify.domain_distribution("which market next?", client=Usage(
+        _choice({"strategy": 0.9, "general": 0.1}, 0.9)))
+    assert c.usage == {"input_tokens": 500, "output_tokens": 10} and c.est_usd > 0

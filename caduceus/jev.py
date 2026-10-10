@@ -23,6 +23,7 @@ ENDPOINT = "https://api.typesafe.ai/v1/systemone"
 DEFAULT_MODEL = "jev-latest"
 USD_PER_INPUT_TOKEN = 0.042 / 1_000_000   # TypeSafe list price, 2026-09
 ENV_KEY = "TYPESAFE_API_KEY"
+MAX_BODY = 1_000_000   # an answers map is a few KB; refuse anything absurd
 
 
 class JevError(Exception):
@@ -66,11 +67,11 @@ class Client:
         try:
             with self.opener(req, timeout=self.timeout) as resp:
                 status = getattr(resp, "status", None) or resp.getcode()
-                raw = resp.read()
+                raw = resp.read(MAX_BODY + 1)
         except urllib.error.HTTPError as e:
             detail = ""
             try:
-                detail = e.read().decode("utf-8", "replace")[:200]
+                detail = e.read(200).decode("utf-8", "replace")
             except Exception:
                 pass
             raise JevError(f"HTTP {e.code} from Jev: {detail or e.reason}")
@@ -78,6 +79,8 @@ class Client:
             raise JevError(f"Jev unreachable: {e.__class__.__name__}: {e}")
         if status != 200:
             raise JevError(f"HTTP {status} from Jev: {raw[:200].decode('utf-8', 'replace')}")
+        if len(raw) > MAX_BODY:
+            raise JevError(f"Jev response too large (> {MAX_BODY} bytes)")
         try:
             data = json.loads(raw.decode("utf-8"))
         except ValueError as e:

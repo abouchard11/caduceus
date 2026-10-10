@@ -281,7 +281,8 @@ class Council:
             quick: bool = False, escalate: bool = True,
             domain: Optional[str] = None, run_id: Optional[str] = None,
             classification: Optional[Classification] = None,
-            pair_id: str = "", arm: str = "") -> CouncilResult:
+            pair_id: str = "", arm: str = "",
+            allow_jev: bool = True) -> CouncilResult:
         t0 = time.time()
         # Pre-flight, fail-closed (RECON precondition, run 20260823-224424):
         # the guard used to fire only after money was gone. A council must not
@@ -303,7 +304,10 @@ class Council:
             if domain:
                 classification = Classification(domain, {domain: 1.0}, 1.0, "given")
             else:
-                classification = _classify.domain_distribution(question)
+                # A mock/dry run must not send the question anywhere
+                # (security review 2026-10-10): no Jev without a live transport.
+                live = allow_jev and self.transport_pref != "mock" and self.mock is None
+                classification = _classify.domain_distribution(question, allow_jev=live)
         domain = domain or classification.top
         self._classification = classification
         self._pair = (pair_id or "", arm or "")
@@ -451,6 +455,8 @@ class Council:
                         costs[seat_name] = round(costs.get(seat_name, 0.0) + est, 5)
         except Exception:
             pass  # cost accounting must never break a council
+        if classification is not None and classification.usage:
+            costs["jev"] = round(classification.est_usd, 6)
 
         result = CouncilResult(
             run_id=run_id, question=question, domain=domain, mode=mode,

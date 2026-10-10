@@ -238,3 +238,30 @@ def test_explicit_domain_skips_the_classifier():
     res = Council(ledger=Ledger(), transport="mock", mock=MockTransport(script)).run(
         "q", [SEATS["forge"], SEATS["finisher"]], domain="security")
     assert res.domain == "security" and res.classification.source == "given"
+
+
+def test_mock_transport_never_calls_jev(monkeypatch):
+    """Security review 2026-10-10: a dry run must not send the question anywhere."""
+    from caduceus import jev
+    monkeypatch.setattr(jev, "available", lambda: True)
+
+    class Boom:
+        def __init__(self, *a, **k):
+            raise AssertionError("Jev client constructed during a mock run")
+    monkeypatch.setattr(jev, "Client", Boom)
+    script = {"forge": [D("A", "a", 0.7), D("A", "a", 0.7)],
+              "finisher": [D("B", "b", 0.7), D("B", "b", 0.7)]}
+    res = Council(ledger=Ledger(), transport="mock", mock=MockTransport(script)).run(
+        "q", [SEATS["forge"], SEATS["finisher"]])
+    assert res.classification.source == "keyword"
+
+
+def test_jev_classifier_cost_lands_in_costs():
+    import pytest
+    from caduceus.classify import Classification
+    cl = Classification("review", {"review": 1.0}, 0.9, "jev", usage={"input_tokens": 1_000_000})
+    script = {"forge": [D("A", "a", 0.7), D("A", "a", 0.7)],
+              "finisher": [D("B", "b", 0.7), D("B", "b", 0.7)]}
+    res = Council(ledger=Ledger(), transport="mock", mock=MockTransport(script)).run(
+        "q", [SEATS["forge"], SEATS["finisher"]], classification=cl)
+    assert res.costs["jev"] == pytest.approx(0.042)

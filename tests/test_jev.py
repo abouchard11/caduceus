@@ -21,8 +21,9 @@ class FakeOpener:
         status, body = self.status, self.body
 
         class R:
-            def read(self_inner):
-                return json.dumps(body).encode()
+            def read(self_inner, n=-1):
+                data = json.dumps(body).encode()
+                return data if n is None or n < 0 else data[:n]
 
             def getcode(self_inner):
                 return status
@@ -96,3 +97,10 @@ def test_key_from_caduceus_env_file(monkeypatch):
 def test_estimate_usd():
     assert jev.estimate_usd({"input_tokens": 1_000_000, "output_tokens": 9}) == pytest.approx(0.042)
     assert jev.estimate_usd({}) == 0.0
+
+
+def test_oversized_body_is_refused():
+    big = {"answers": {"x": {"type": "noul", "noul": 0.5}}, "pad": "z" * (jev.MAX_BODY + 10)}
+    with pytest.raises(jev.JevError) as e:
+        jev.Client(key="k-test", opener=FakeOpener(body=big)).ask("s", {})
+    assert "too large" in str(e.value)

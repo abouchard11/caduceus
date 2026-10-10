@@ -10,6 +10,7 @@ so a council never waits on Jev.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
@@ -24,8 +25,13 @@ class Classification:
     top: str
     probabilities: Dict[str, float]
     confidence: float
-    source: str                       # "jev" | "keyword"
+    source: str                       # "jev" | "keyword" | "given"
     warnings: List[str] = field(default_factory=list)
+    usage: Dict[str, int] = field(default_factory=dict)   # Jev tokens spent, if any
+
+    @property
+    def est_usd(self) -> float:
+        return jev.estimate_usd(self.usage) if self.usage else 0.0
 
     @property
     def needs_blend(self) -> bool:
@@ -61,14 +67,25 @@ def domain_distribution(text: str, client=None, allow_jev: bool = True) -> Class
         answer = answers[QUESTION_ID]
         raw = answer["probabilities"]
         known = set(config.DOMAIN_DESCRIPTIONS)
-        probs = {str(d): float(p) for d, p in raw.items() if str(d) in known and float(p) >= 0.0}
+        probs: Dict[str, float] = {}
+        for d, p in raw.items():
+            if str(d) not in known:
+                continue
+            p = float(p)
+            if not math.isfinite(p) or not 0.0 <= p <= 1.0:
+                raise ValueError(f"probability out of range for {d}: {p}")
+            probs[str(d)] = p
         total = sum(probs.values())
         if not probs or total <= 0.0:
             raise ValueError("no usable probabilities")
         probs = {d: p / total for d, p in probs.items()}
         top = max(probs.items(), key=lambda kv: (kv[1], kv[0]))[0]
         confidence = float(answer.get("confidence", probs[top]))
-        return Classification(top=top, probabilities=probs, confidence=confidence, source="jev")
+        if not math.isfinite(confidence) or not 0.0 <= confidence <= 1.0:
+            raise ValueError(f"confidence out of range: {confidence}")
+        usage = dict(getattr(client, "usage", {}) or {})
+        return Classification(top=top, probabilities=probs, confidence=confidence, source="jev",
+                              usage=usage)
     except (jev.JevError, KeyError, TypeError, ValueError, AttributeError) as e:
         out = _keyword(text)
         out.warnings.append(f"jev classifier fell back to keywords: {e.__class__.__name__}: {e}")
