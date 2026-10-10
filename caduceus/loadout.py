@@ -172,3 +172,184 @@ def propose(scores: Scores, cast: Cast, deny: Denylist, per: int = 5) -> dict:
             "denied": denied, "stopped_reason": scores.stopped_reason,
             "errors": list(scores.errors), "calls": scores.calls, "cached": scores.cached,
             "est_usd": round(scores.est_usd, 4)}
+
+
+# ---------------------------------------------------------------- install
+
+RECORD = ".caduceus-loadout.json"
+INSTALL_DIR = "loadout"
+
+
+def state_path() -> Path:
+    return config.caduceus_home() / "compile-state.json"
+
+
+def _read_state() -> dict:
+    p = state_path()
+    if p.exists():
+        try:
+            return json.loads(p.read_text())
+        except ValueError:
+            return {}
+    return {}
+
+
+def mark_first_install(ts: Optional[float] = None, force: bool = False) -> float:
+    st = _read_state()
+    if st.get("first_install_ts") is None or force:
+        st["first_install_ts"] = float(ts if ts is not None else time.time())
+        state_path().write_text(json.dumps(st, indent=1))
+    return float(st["first_install_ts"])
+
+
+def first_install_ts() -> Optional[float]:
+    v = _read_state().get("first_install_ts")
+    return float(v) if v is not None else None
+
+
+def load_table(path: Path) -> dict:
+    """A LOADOUT.json or LOADOUT-PROPOSAL.json; items normalised to names."""
+    d = json.loads(Path(path).read_text())
+    seats: Dict[str, Dict[str, List[str]]] = {}
+    for seat, doms in (d.get("seats") or {}).items():
+        seats[seat] = {}
+        for dom, items in (doms or {}).items():
+            names: List[str] = []
+            for it in items or []:
+                name = it if isinstance(it, str) else (it or {}).get("name", "")
+                if name and name not in names:
+                    names.append(name)
+            seats[seat][dom] = names
+    return {"schema": d.get("schema", PROPOSAL_SCHEMA), "cast_sha256": d.get("cast_sha256", ""),
+            "per": d.get("per"), "seats": seats}
+
+
+def table_sha256(table: dict) -> str:
+    return hashlib.sha256(json.dumps(table.get("seats", {}), sort_keys=True).encode()).hexdigest()
+
+
+def plan_install(table: dict, cast: Cast, cap: int = 15) -> Dict[str, List[str]]:
+    """Per seat: the union of its per-domain lists, the seat's own prior
+    domains first (SEATS order), then the remaining domains in table order,
+    de-duplicated, capped."""
+    plan: Dict[str, List[str]] = {}
+    seats = table.get("seats", {})
+    for s in cast.seats:
+        doms = seats.get(s.seat, {}) or {}
+        priors = list(config.SEATS[s.seat].domains) if s.seat in config.SEATS else []
+        order = [d for d in priors if d in doms] + [d for d in doms if d not in priors]
+        names: List[str] = []
+        for d in order:
+            for n in doms.get(d, []):
+                if n not in names:
+                    names.append(n)
+        plan[s.seat] = names[:cap]
+    return plan
+
+
+def _profile_dir(seat: str) -> Path:
+    return config.hermes_home() / "profiles" / seat
+
+
+def _record_path(seat: str) -> Path:
+    return _profile_dir(seat) / "skills" / INSTALL_DIR / RECORD
+
+
+def _read_record(seat: str) -> Optional[dict]:
+    p = _record_path(seat)
+    if not p.exists():
+        return None
+    try:
+        return json.loads(p.read_text())
+    except ValueError:
+        return None
+
+
+def install(table: dict, cast: Cast, mani: Manifest, cap: int = 15,
+            log: Optional[List[str]] = None) -> Dict[str, dict]:
+    import shutil
+    log = log if log is not None else []
+    plan = plan_install(table, cast, cap)
+    by_name = mani.by_name()
+    out: Dict[str, dict] = {}
+    any_installed = False
+    for seat, names in plan.items():
+        res: dict = {"installed": [], "missing": [], "removed": [], "skipped": None}
+        out[seat] = res
+        pd = _profile_dir(seat)
+        if not pd.is_dir():
+            res["skipped"] = "profile missing"
+            log.append(f"[=] {seat}: profile missing, loadout skipped")
+            continue
+        dest_root = pd / "skills" / INSTALL_DIR
+        prior = (_read_record(seat) or {}).get("installed", {})
+        if names or prior:
+            dest_root.mkdir(parents=True, exist_ok=True)
+        record: Dict[str, str] = {}
+        for name in names:
+            e = by_name.get(name)
+            src = Path(e.path).parent if e else None
+            if src is None or not src.is_dir() or not (src / "SKILL.md").exists():
+                res["missing"].append(name)
+                continue
+            dst = dest_root / name
+            if dst.exists():
+                shutil.rmtree(dst)
+            shutil.copytree(src, dst)
+            record[name] = e.sha256
+            res["installed"].append(name)
+        for stale in prior:
+            if stale not in record and (dest_root / stale).is_dir():
+                shutil.rmtree(dest_root / stale)
+                res["removed"].append(stale)
+        if record:
+            _record_path(seat).write_text(json.dumps({
+                "installed": record, "ts": time.time(), "table_sha256": table_sha256(table),
+                "cast_sha256": cast.sha256}, indent=1))
+        elif _record_path(seat).exists():
+            _record_path(seat).unlink()   # nothing in reach any more: no record to uninstall
+        any_installed = any_installed or bool(record)
+        log.append(f"[+] {seat}: {len(record)} skills in reach"
+                   + (f", missing {res['missing']}" if res["missing"] else ""))
+    if any_installed:
+        mark_first_install()
+    return out
+
+
+def _seats_with_records() -> List[str]:
+    root = config.hermes_home() / "profiles"
+    if not root.is_dir():
+        return []
+    return sorted(p.name for p in root.iterdir() if (p / "skills" / INSTALL_DIR / RECORD).exists())
+
+
+def uninstall(log: Optional[List[str]] = None) -> Dict[str, int]:
+    """Remove exactly what install recorded, per seat. Hand-placed directories
+    under skills/loadout/ and everything outside it are left alone."""
+    import shutil
+    log = log if log is not None else []
+    out: Dict[str, int] = {}
+    for seat in _seats_with_records():
+        rec = _read_record(seat) or {}
+        root = _profile_dir(seat) / "skills" / INSTALL_DIR
+        n = 0
+        for name in rec.get("installed", {}):
+            d = root / name
+            if d.is_dir():
+                shutil.rmtree(d)
+                n += 1
+        _record_path(seat).unlink()
+        out[seat] = n
+        log.append(f"[-] {seat}: {n} loadout skills removed")
+    return out
+
+
+def status() -> dict:
+    seats: Dict[str, dict] = {}
+    for seat in sorted(set(config.SEATS) | set(_seats_with_records())):
+        rec = _read_record(seat) or {}
+        seats[seat] = {"installed": len(rec.get("installed", {})),
+                       "table_sha256": rec.get("table_sha256", ""),
+                       "cast_sha256": rec.get("cast_sha256", ""),
+                       "ts": rec.get("ts")}
+    return {"seats": seats, "first_install_ts": first_install_ts()}

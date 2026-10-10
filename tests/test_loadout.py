@@ -107,3 +107,111 @@ def test_bad_answer_for_one_skill_is_skipped_not_fatal(tmp_path):
     sc = loadout.score_skills([_entry("good-a"), _entry("bad")], _cast(), Flaky(),
                               loadout.Cache(tmp_path / "c.json"))
     assert "good-a" in sc.by_skill and "bad" not in sc.by_skill and sc.errors == ["bad: JevError: boom"]
+
+
+# ---- Task 9: install / uninstall / status / clock ---------------------------
+
+def _mani_with(tmp_path, names):
+    root = tmp_path / "skills"
+    for n in names:
+        d = root / "cat" / n
+        d.mkdir(parents=True)
+        (d / "SKILL.md").write_text(f"---\nname: {n}\ndescription: x\n---\n")
+        (d / "extra.md").write_text("payload")
+    return manifest.scan(roots=[("t", root, 3)])
+
+
+def _profile_dirs():
+    for s in ["forge", "finisher", "recon", "sparring", "envoy"]:
+        (config.hermes_home() / "profiles" / s).mkdir(parents=True, exist_ok=True)
+
+
+def _table(seats):
+    return {"schema": "caduceus.loadout.v1", "seats": seats}
+
+
+def test_load_table_accepts_strings_and_objects(tmp_path):
+    p = tmp_path / "t.json"
+    p.write_text(json.dumps(_table({"finisher": {"review": ["a", {"name": "b", "score": 3}]}})))
+    t = loadout.load_table(p)
+    assert t["seats"]["finisher"]["review"] == ["a", "b"]
+
+
+def test_plan_install_precedence_and_cap():
+    table = _table({"finisher": {
+        "general": [f"g{i}" for i in range(5)], "review": [f"r{i}" for i in range(5)],
+        "testing": [f"t{i}" for i in range(5)], "comms": [f"c{i}" for i in range(5)]}})
+    plan = loadout.plan_install(table, _cast(), cap=12)
+    assert plan["finisher"][:5] == [f"r{i}" for i in range(5)]      # finisher's first prior domain
+    assert plan["finisher"][5:10] == [f"t{i}" for i in range(5)]    # then testing (also a prior)
+    assert len(plan["finisher"]) == 12 and "c4" not in plan["finisher"]
+    assert plan.get("forge", []) == []
+
+
+def test_plan_install_dedups_across_domains():
+    table = _table({"finisher": {"review": ["a", "b"], "testing": ["b", "c"]}})
+    assert loadout.plan_install(table, _cast(), cap=15)["finisher"] == ["a", "b", "c"]
+
+
+def test_install_uninstall_only_recorded(tmp_path):
+    _profile_dirs()
+    mani = _mani_with(tmp_path, ["r0", "r1"])
+    res = loadout.install(_table({"finisher": {"review": ["r0", "r1", "ghost"]}}), _cast(), mani)
+    pd = config.hermes_home() / "profiles" / "finisher" / "skills"
+    assert (pd / "loadout" / "r0" / "SKILL.md").exists() and (pd / "loadout" / "r0" / "extra.md").exists()
+    assert res["finisher"]["installed"] == ["r0", "r1"] and res["finisher"]["missing"] == ["ghost"]
+    rec = json.loads((pd / "loadout" / loadout.RECORD).read_text())
+    assert set(rec["installed"]) == {"r0", "r1"} and len(rec["installed"]["r0"]) == 64
+    (pd / "productivity" / "hand").mkdir(parents=True)
+    (pd / "productivity" / "hand" / "SKILL.md").write_text("x")
+    (pd / "loadout" / "manual").mkdir(parents=True)
+    assert loadout.first_install_ts() is not None
+    removed = loadout.uninstall()
+    assert removed == {"finisher": 2}
+    assert not (pd / "loadout" / "r0").exists() and (pd / "loadout" / "manual").exists()
+    assert (pd / "productivity" / "hand" / "SKILL.md").exists()
+    assert not (pd / "loadout" / loadout.RECORD).exists()
+    assert loadout.uninstall() == {}
+
+
+def test_install_is_idempotent_and_refreshes_changed_source(tmp_path):
+    _profile_dirs()
+    mani = _mani_with(tmp_path, ["r0"])
+    t = _table({"finisher": {"review": ["r0"]}})
+    loadout.install(t, _cast(), mani)
+    (tmp_path / "skills" / "cat" / "r0" / "SKILL.md").write_text("---\nname: r0\ndescription: changed\n---\n")
+    mani2 = manifest.scan(roots=[("t", tmp_path / "skills", 3)])
+    res = loadout.install(t, _cast(), mani2)
+    pd = config.hermes_home() / "profiles" / "finisher" / "skills" / "loadout"
+    assert "changed" in (pd / "r0" / "SKILL.md").read_text() and res["finisher"]["installed"] == ["r0"]
+
+
+def test_missing_skill_source_skipped(tmp_path):
+    _profile_dirs()
+    mani = _mani_with(tmp_path, ["r0"])
+    import shutil
+    shutil.rmtree(tmp_path / "skills" / "cat" / "r0")
+    res = loadout.install(_table({"finisher": {"review": ["r0"]}}), _cast(), mani)
+    assert res["finisher"]["installed"] == [] and res["finisher"]["missing"] == ["r0"]
+
+
+def test_install_skips_absent_profile(tmp_path):
+    mani = _mani_with(tmp_path, ["r0"])
+    res = loadout.install(_table({"finisher": {"review": ["r0"]}}), _cast(), mani)
+    assert res["finisher"]["skipped"] == "profile missing" and res["finisher"]["installed"] == []
+    assert loadout.first_install_ts() is None
+
+
+def test_status_and_clock(tmp_path):
+    _profile_dirs()
+    mani = _mani_with(tmp_path, ["r0"])
+    assert loadout.status()["first_install_ts"] is None
+    loadout.install(_table({"finisher": {"review": ["r0"]}}), _cast(), mani)
+    st = loadout.status()
+    assert st["seats"]["finisher"]["installed"] == 1 and st["seats"]["forge"]["installed"] == 0
+    t0 = st["first_install_ts"]
+    assert t0 is not None
+    loadout.install(_table({"finisher": {"review": ["r0"]}}), _cast(), mani)
+    assert loadout.first_install_ts() == t0                      # never moves on its own
+    loadout.mark_first_install(ts=123.0, force=True)
+    assert loadout.first_install_ts() == 123.0
