@@ -190,7 +190,9 @@ def cmd_ledger_runs(args):
     runs = led.runs(unsettled_only=not args.all)
     for r in runs:
         flag = " " if r["settled"] else "*"
-        _print(f"{flag} {r['run_id']}  [{r['domain']}]  {r['question'][:80]}")
+        tag = (f"  pair {r['pair_id']} arm {r['arm']}  lead {r['lead'] or '-'}"
+               if r.get("pair_id") else "")
+        _print(f"{flag} {r['run_id']}  [{r['domain']}]  {r['question'][:80]}{tag}")
     if not runs:
         _print("no runs" + ("" if args.all else " awaiting settlement"))
     led.close()
@@ -778,6 +780,13 @@ def cmd_compile(args):
     res = compile_mod.write_outputs(p, c, config.repo_root(), write=args.write)
     for k, v in res.items():
         _print(f"{k}: {v}")
+    if not args.write and res.get("USER.md") == "would-write":
+        import difflib
+        current = config.repo_root() / "seats" / "USER.md"
+        old_lines = current.read_text().splitlines() if current.exists() else []
+        for line in difflib.unified_diff(old_lines, compile_mod.render_user_md(p, c).splitlines(),
+                                         "seats/USER.md", "seats/USER.md (rendered)", lineterm="", n=1):
+            _print(line)
     if not args.write and any(v == "would-write" for v in res.values()):
         _print("re-run with --write to apply, then `cad init` to push USER.md into the seats")
 
@@ -900,7 +909,11 @@ def cmd_compile_status(args):
                f"{_t.strftime('%Y-%m-%d', _t.localtime(t0))})")
     else:
         _print("clock: not started (no loadout installed yet)")
-    r = evalpair.report(Ledger())
+    led = Ledger()
+    try:
+        r = evalpair.report(led)
+    finally:
+        led.close()
     _print(f"pairs: {r['pairs']} · B {r['b_wins']} · A {r['a_wins']} · ties {r['ties']} · "
            f"unsettled {r['unsettled']} · verdict: {r['verdict']}")
 
@@ -913,7 +926,11 @@ def cmd_compile_dispatch(args):
 
 
 def _eval_loadout_report():
-    r = evalpair.report(Ledger())
+    led = Ledger()
+    try:
+        r = evalpair.report(led)
+    finally:
+        led.close()
     _print(f"pairs: {r['pairs']} · B {r['b_wins']} · A {r['a_wins']} · ties {r['ties']} · "
            f"unsettled {r['unsettled']}")
     _print(f"days: {'-' if r['days'] is None else int(r['days'])}/{evalpair.RULE_DAYS}   "

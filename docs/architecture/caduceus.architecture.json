@@ -1,0 +1,350 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Caduceus",
+    "subtitle": "OBSERVED: traced from caduceus/ at 6b83b91 (v0.3.3) \u2014 multi-seat decision engine on Hermes Agent",
+    "quality_profile": "showcase",
+    "visual_preset": "signal-flow",
+    "views": [
+      {
+        "id": "deliberation",
+        "label": "Council deliberation",
+        "focus": [
+          "operator",
+          "cad",
+          "council",
+          "transport",
+          "gateways"
+        ],
+        "note": "Independent drafts, then anonymized cross-examination, then believability-weighted synthesis. No voting."
+      },
+      {
+        "id": "trackrecord",
+        "label": "Track record",
+        "focus": [
+          "council",
+          "ledger",
+          "dashboard"
+        ],
+        "note": "Weights only move when a run is settled against reality. 45-day half-life decay."
+      },
+      {
+        "id": "guardrails",
+        "label": "Guardrails",
+        "focus": [
+          "guard",
+          "budgets",
+          "gateways",
+          "council"
+        ],
+        "note": "A fail-closed command guard and per-run spend ceilings, both requiring a second party to relax."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "budgets",
+      "type": "security",
+      "label": "Spend Guard",
+      "sublabel": "per-run + daily cap",
+      "pos": [
+        510,
+        150
+      ],
+      "size": [
+        160,
+        60
+      ],
+      "tag": "$8 soft / $10 hard"
+    },
+    {
+      "id": "guard",
+      "type": "security",
+      "label": "Command Guard",
+      "sublabel": "pre_tool_call, fail-closed",
+      "pos": [
+        1000,
+        150
+      ],
+      "size": [
+        170,
+        60
+      ],
+      "tag": "two-person rule"
+    },
+    {
+      "id": "operator",
+      "type": "external",
+      "label": "Operator",
+      "sublabel": "the Shaper",
+      "pos": [
+        40,
+        320
+      ],
+      "size": [
+        140,
+        64
+      ]
+    },
+    {
+      "id": "cad",
+      "type": "backend",
+      "label": "cad CLI",
+      "sublabel": "stdlib only",
+      "pos": [
+        270,
+        320
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "council",
+      "type": "backend",
+      "label": "Council",
+      "sublabel": "3-phase deliberation",
+      "pos": [
+        510,
+        320
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "implicit consensus"
+    },
+    {
+      "id": "transport",
+      "type": "backend",
+      "label": "Transport",
+      "sublabel": "API + CLI fallback",
+      "pos": [
+        760,
+        320
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "gateways",
+      "type": "cloud",
+      "label": "Hermes Gateways",
+      "sublabel": "5 seats, :8651-8655",
+      "pos": [
+        1000,
+        320
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "models",
+      "type": "external",
+      "label": "Model Families",
+      "sublabel": "via OpenRouter + Alibaba",
+      "pos": [
+        1260,
+        320
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "telegram",
+      "type": "external",
+      "label": "Telegram",
+      "sublabel": "memo broadcast",
+      "pos": [
+        40,
+        520
+      ],
+      "size": [
+        140,
+        60
+      ]
+    },
+    {
+      "id": "dashboard",
+      "type": "frontend",
+      "label": "Dashboard",
+      "sublabel": "self-contained HTML",
+      "pos": [
+        270,
+        520
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "ledger",
+      "type": "database",
+      "label": "Believability Ledger",
+      "sublabel": "SQLite",
+      "pos": [
+        510,
+        520
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "tag": "45-day half-life"
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Local: macOS",
+      "wraps": [
+        "cad",
+        "council",
+        "transport",
+        "gateways",
+        "ledger",
+        "dashboard",
+        "guard",
+        "budgets"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "ask",
+      "from": "operator",
+      "to": "cad",
+      "label": "asks",
+      "variant": "emphasis"
+    },
+    {
+      "id": "run",
+      "from": "cad",
+      "to": "council",
+      "label": "runs",
+      "variant": "emphasis"
+    },
+    {
+      "id": "parallel",
+      "from": "council",
+      "to": "transport",
+      "label": "drafts",
+      "variant": "emphasis"
+    },
+    {
+      "id": "reach",
+      "from": "transport",
+      "to": "gateways",
+      "label": "HTTP",
+      "variant": "emphasis"
+    },
+    {
+      "id": "infer",
+      "from": "gateways",
+      "to": "models",
+      "label": "4 families",
+      "variant": "emphasis"
+    },
+    {
+      "id": "gate",
+      "from": "gateways",
+      "to": "guard",
+      "label": "pre_tool_call",
+      "variant": "security"
+    },
+    {
+      "id": "ceiling",
+      "from": "council",
+      "to": "budgets",
+      "label": "per-run ceiling",
+      "variant": "security"
+    },
+    {
+      "id": "weigh",
+      "from": "council",
+      "to": "ledger",
+      "label": "weights + settle",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24,
+      "labelDx": 62
+    },
+    {
+      "id": "render",
+      "from": "ledger",
+      "to": "dashboard",
+      "label": "reads",
+      "variant": "dashed"
+    },
+    {
+      "id": "broadcast",
+      "from": "council",
+      "to": "telegram",
+      "label": "memo",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "The five seats",
+      "items": [
+        "FORGE - build and sequence (qwen3.7-plus, Alibaba coding plan)",
+        "FINISHER - verify, gate, approve risky commands (claude-sonnet-5)",
+        "RECON - cited, confidence-graded evidence (deepseek-v4-pro)",
+        "SPARRING - attack plans and dissent (hermes-4-405b)",
+        "ENVOY - outbound tone pass (qwen3.7-flash)"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Deliberation protocol",
+      "items": [
+        "Independent drafts, then anonymized cross-examination, then weighted synthesis",
+        "Dissent is preserved as a Minority Report",
+        "Uncited position flips are logged as conformity",
+        "Agreement is detected by Jaccard overlap, not by vote"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Why it stays honest",
+      "items": [
+        "Ledger weights move only when a run is settled against reality",
+        "Laplace-smoothed per seat x domain, 45-day half-life",
+        "CRITICAL commands have no override; HIGH needs a different model family or the operator",
+        "Raising a spend ceiling needs a two-person token; lowering is free"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Cost posture",
+      "items": [
+        "Idle cost is zero \u2014 councils, cron ticks, and kanban dispatch are all event-driven",
+        "Transport is stdlib urllib and subprocess; no httpx or requests"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Casting constraints",
+      "items": [
+        "Four model families on purpose - same-family seats agree too easily",
+        "SPARRING is provisioned with every toolset stripped: it argues, it never touches the filesystem",
+        "FORGE routes through an Alibaba coding plan; the other four go via OpenRouter",
+        "models.py checks the OpenRouter catalog for candidate freshness on a 24h cache",
+        "Quick pair is FORGE + FINISHER; full council adds RECON + SPARRING"
+      ]
+    }
+  ]
+}

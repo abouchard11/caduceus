@@ -43,13 +43,14 @@ MAX_TOKENS = 2048
 # heterogeneity invariant in config.py), and the cheap baseline exists only
 # to show what a race-to-the-bottom recast would have cost in recall.
 CANDIDATES: List[Dict] = [
-    {"model": "anthropic/claude-sonnet-4.6", "eligible": True, "role": "incumbent"},
+    {"model": "openai/gpt-6-luna-pro", "eligible": True, "role": "incumbent"},
+    {"model": "anthropic/claude-sonnet-4.6", "eligible": True, "role": "previous"},
     {"model": "anthropic/claude-sonnet-5", "eligible": True, "role": "previous"},
     {"model": "moonshotai/kimi-k3", "eligible": True, "role": "fifth-vendor"},
     {"model": "deepseek/deepseek-v4-pro-0813", "eligible": False,
      "role": "calibration: RECON's family"},
     {"model": "qwen/qwen3.8-max", "eligible": False,
-     "role": "calibration: FORGE's family (hard rule)"},
+     "role": "calibration: cheap baseline"},
     {"model": "qwen/qwen3.8-27b", "eligible": False,
      "role": "calibration: cheap baseline"},
 ]
@@ -61,7 +62,7 @@ KINDS = {
     "blocked-complete", "false-premise",
 }
 
-DEFAULT_INCUMBENT = "anthropic/claude-sonnet-4.6"
+DEFAULT_INCUMBENT = "openai/gpt-6-luna-pro"
 FALLBACK_IN_PER_M = 3.0
 FALLBACK_OUT_PER_M = 15.0
 TOKENS_OVERHEAD = 600
@@ -437,12 +438,22 @@ def decide(summary: Dict) -> str:
     a tie broken by cheaper cost/pass, UNLESS the two candidates' recall
     ranges overlap - in which case the margin is noise, not a result, and
     the rule refuses to pick: "undecided, hold the incumbent, add a pass."
+
+    TWO DIFFERENT THINGS PRODUCE "undecided", and they need different words:
+
+      * nobody cleared the bar (precision/fp_rate/eligibility) - this is a
+        disqualification, not a tie. More passes cannot move a mean across
+        the bar, so offering the tie remedy here would be a lie.
+      * two candidates tied on recall with overlapping ranges - a genuine
+        tie, where another pass genuinely does separate them.
+
+    Both name the ACTUAL incumbent. Hardcoding a model name here meant the
+    message named a stale model the moment the seat was recast, which is
+    exactly when a reader most needs it to be right.
     """
     candidates = summary.get("candidates", {})
     incumbent = summary.get("incumbent", DEFAULT_INCUMBENT)
     incumbent_fp = candidates.get(incumbent, {}).get("fp_rate", {}).get("mean", 0.0)
-
-    undecided = f"undecided: hold {DEFAULT_INCUMBENT}, add a third pass"
 
     qualified = {
         m: d for m, d in candidates.items()
@@ -451,7 +462,16 @@ def decide(summary: Dict) -> str:
         and d["fp_rate"]["mean"] <= incumbent_fp + FP_RATE_SLACK
     }
     if not qualified:
-        return undecided
+        detail = ", ".join(
+            f"{m}: precision {d['precision']['mean']:.2f}, fp {d['fp_rate']['mean']:.2f}"
+            for m, d in sorted(candidates.items())
+            if d.get("eligible")
+        ) or "no eligible candidates in this sweep"
+        return (
+            f"undecided: no eligible candidate cleared precision >= 0.50 "
+            f"and fp <= {incumbent_fp + FP_RATE_SLACK:.2f} — hold {incumbent}; "
+            f"a third pass cannot change this. ({detail})"
+        )
 
     ranked = sorted(qualified.items(), key=lambda kv: -kv[1]["recall"]["mean"])
     best_model, best = ranked[0]
@@ -467,7 +487,8 @@ def decide(summary: Dict) -> str:
     s_min, s_max = second["recall"]["min"], second["recall"]["max"]
     overlap = not (b_max < s_min or s_max < b_min)
     if overlap:
-        return undecided
+        # Genuine tie: the margin is noise, and another pass does help.
+        return f"undecided: hold {incumbent}, add a third pass"
 
     if best.get("cost_per_pass", float("inf")) <= second.get("cost_per_pass", float("inf")):
         return best_model
