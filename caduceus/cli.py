@@ -400,9 +400,17 @@ def cmd_followup_nudge(args):
         _print(text)
         return
     ok, err = telegram.post(text, seat=args.seat)
-    _print("nudge sent" if ok else f"FAILED: {err}")
-    if not ok:
-        raise SystemExit(1)
+    if ok:
+        _print("nudge sent")
+        return
+    if "not configured" in (err or "").lower():
+        # No Telegram on this machine is a configuration state, not a failure:
+        # the agenda is the deliverable, so it goes to stdout (cron captures it).
+        _print(text)
+        _print("[telegram unconfigured - agenda printed instead; `cad telegram runbook` to wire it]")
+        return
+    _print(f"FAILED: {err}")
+    raise SystemExit(1)
 
 
 def cmd_approve_grant(args):

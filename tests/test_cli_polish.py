@@ -71,3 +71,23 @@ def test_ledger_handles_are_closed(monkeypatch):
     doctor._loadout_row()
     cli.main(["eval", "loadout", "report"])
     assert len(opened) >= 3 and all(getattr(L, "_closed_by_test", False) for L in opened)
+
+
+def test_nudge_prints_agenda_when_telegram_unconfigured(monkeypatch, capsys):
+    from caduceus import followup, telegram
+    monkeypatch.setattr(followup, "status", lambda: {})
+    monkeypatch.setattr(followup, "agenda", lambda st: "- do the thing")
+    monkeypatch.setattr(telegram, "post", lambda text, seat=None: (False, "Platform 'telegram' is not configured. Looked in ..."))
+    assert cli.main(["followup", "nudge"]) == 0
+    out = capsys.readouterr().out
+    assert "- do the thing" in out and "telegram unconfigured" in out and "FAILED" not in out
+
+
+def test_nudge_real_send_failure_still_fails(monkeypatch, capsys):
+    from caduceus import followup, telegram
+    monkeypatch.setattr(followup, "status", lambda: {})
+    monkeypatch.setattr(followup, "agenda", lambda st: "- do the thing")
+    monkeypatch.setattr(telegram, "post", lambda text, seat=None: (False, "HTTP 500 from telegram"))
+    with pytest.raises(SystemExit):
+        cli.main(["followup", "nudge"])
+    assert "FAILED" in capsys.readouterr().out
