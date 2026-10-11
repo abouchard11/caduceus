@@ -66,3 +66,14 @@ settled these; Alex chose 11–13 himself and deferred the rest to the recommend
 23. **Paired measurement.** Same question, arm A without loadouts, arm B with, both
     settled against the same reality. Rule pre-registered in the design §6.
 24. **JSON, stdlib.** No YAML dependency enters this repo for a config file.
+
+## 2026-10-11 — the cast flow (0.5.0)
+
+25. **A cast is a directory.** `PROFILE.json` in, `CAST.json` + `USER.md` + rendered souls out,
+    beside the profile. `seats/` is Alex's. Compile never writes another person into `seats/`.
+26. **One active guest cast per machine.** Archetype seats are shared Hermes profiles; the last
+    cast installed owns them. Alex's own seats keep Alex's USER.md unless `--take-over` says
+    otherwise, and that is backed up and reversible with `cad init`.
+27. **The classifier steerability gate is measured, not assumed.** Pre-registered eval, fixed
+    rule, deterministic scoring; a FAIL turns sanitisation on by default. The root `--only
+    third-party` guard hook is deliberate (R23) and the doctor says so instead of failing.

@@ -270,3 +270,51 @@ same discovery.
   measure with the memo's elapsed time and token usage before and after.
 - A loadout can only be as good as the manifest descriptions; Hermes-side skills with
   empty descriptions score as noise. The manifest flags empty descriptions.
+
+## 11. 0.5.0 — the cast flow for a second person (2026-10-11)
+
+Alex: "wire and unblock all road blocks needed in order to get this being a first-class and
+fully functional flow." Five blockers, five changes.
+
+### 11.1 Cast directories
+A **cast directory** is any directory holding `PROFILE.json`; compile writes `CAST.json`,
+`USER.md` and, for archetype seats with no hand-written soul in `seats/<seat>/`, a rendered
+`<seat>/SOUL.md` beside it. `seats/` is Alex's cast directory and the default. `cad compile
+--profile P` writes beside `P` (or `--out DIR`), never into `seats/`. `examples/` is a cast
+directory for the synthetic Thinker.
+
+### 11.2 Provisioning archetype seats
+`cad init --cast DIR` provisions every seat named in `DIR/CAST.json`: the five known seats as
+today (`effective_seat`), the four archetype seats (plant, coordinator, anchor, driver) from the
+library defaults (OpenRouter, ports 8665–8668 via `compile.seat_for`), with SOUL.md from the cast
+directory and USER.md from the cast directory. Hermes profiles are shared by seat name, so an
+archetype seat serves whichever cast installed it last: **one active guest cast per machine**
+(concierge mode, Alex runs it). A seat that also belongs to Alex's cast (`seats/CAST.json`) keeps
+Alex's USER.md unless `--take-over` is passed, which backs the copy up and prints the restore
+command (`cad init`). Guard hook, council skill and loadout rules apply unchanged to new seats.
+
+### 11.3 Cast-aware councils
+`cad council ask --cast DIR` runs the cast's fired seats (the first four in library order for a
+full council; `--seats` may name any provisioned seat, archetype seats included). `seat_list` and
+`effective_seat` know archetype seats; casting overrides (`cad models set`) apply to them too.
+The memo records the cast directory and the profile sha. Believability accrues per seat name, so
+an archetype seat's ledger is its own, across casts.
+
+### 11.4 `cad onboard PROFILE.json`
+One verb for a second person: compile into the profile's directory, print the cast, optionally
+`--provision` (runs `init --cast`) and `--ask "Q"` (runs the first council on that cast). Prints
+the sentence Alex says to the peer: which roles their profile staffs and why.
+
+### 11.5 Classifier steerability (the E2 gate, scoped to what Caduceus exposes)
+Only the domain classifier sees live input from a council question; loadout scoring sees skill
+descriptions. `cad eval classifier` is pre-registered in `docs/classifier-steer-design.md`:
+30 questions with intended domains × 6 injection payload classes × N repeats, deterministic
+scoring (flip of the top domain; mean mass moved), decision rule fixed before the run. A FAIL
+turns on `classify.sanitize()` (instruction-like lines stripped before the Jev call) by default
+and the eval re-runs. Cost ≈ $0.02 per pass.
+
+### 11.6 Doctor and nudge
+The root-config check distinguishes the deliberate `cad guard hook --only third-party` (PR #17/18,
+rule R23: Hermes stays off other people's repositories) from a full guard: the former is OK, the
+latter FAIL. `cad followup nudge` prints the agenda and exits 0 when Telegram is unconfigured; a
+real send failure still fails.
