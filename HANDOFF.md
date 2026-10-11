@@ -30,7 +30,7 @@ Done today, in order:
    (run 20260929-233211-ea55cf, a --note typed into the seat slot) is still live: resettle it with
    the real verdict.
 7. Demand probe drafted by ENVOY+SPARRING (run 20261010-215938-f356f5) and staged in
-   hq/outputs/demand-probe-2026-10-10.md and in the Drafts app (tag caduceus/probe). The one
+   hq/outputs/demand-probe-2026-10-10.md (the Drafts-app connector failed on its own side). The one
    message, the yes/maybe replies, the rules, the pass line and a five-row worksheet are there.
    What 0.4.0 can actually deliver to a stranger is a compiled cast as a document; the probe text
    promises exactly that. Recipients are Alex's: no record names a peer who holds a PrinciplesYou.
