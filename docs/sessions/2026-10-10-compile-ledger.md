@@ -60,3 +60,6 @@ Final: minor (deferred): cad ledger runs does not show arm/pair_id
 Final: minor (deferred): CAST.json heterogeneity warning uses static SEATS, not models.effective_seat
 Final: Ruling: reviewer's declined-to-judge lines all stand as set aside (discovery, E2, denylist breadth, budgets integration, prose drift, literal 'report', operator settlement, out-of-scope items, pre-existing changelog debt, in-code template vs .tmpl) — cost if wrong: none beyond what each line already states
 Final: suite 379 passed in 4.56s
+
+## 0.5.0 review fix pass (2026-10-11)
+Fresh Fable review: 1 Critical, 6 Important, 7 Minor. Fixed: sanitizer blanked one-line questions (now domain-anchored patterns, first line always kept, empty-only guard on the kept text); --out seats/ bypass refused; models set/list know archetype seats; unknown cast seats refused before provisioning; nudge handles Caduceus' own unconfigured Telegram; take-over prints the restore command; init protect path tested through init. Declined: ignore commented '# cad guard hook' lines (the existing suite treats that marker as a hook). Deferred minors: ports 866x in FIRST_RUN/architecture docs; alex_cast_seats fallback log line.
