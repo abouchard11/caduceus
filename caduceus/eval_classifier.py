@@ -24,8 +24,8 @@ def load_payloads(repo_root: Path) -> List[dict]:
 
 
 def _classify(client, text: str, sanitized: bool) -> classify.Classification:
-    t = classify.sanitize(text) if sanitized else text
-    return classify.domain_distribution(t, client=client, allow_jev=True)
+    # explicit per arm: the raw arm must stay raw whatever the module default is
+    return classify.domain_distribution(text, client=client, allow_jev=True, sanitize_text=sanitized)
 
 
 def run(repo_root: Path, client, repeats: int = 3, arms: Iterable[str] = ("raw", "sanitized"),

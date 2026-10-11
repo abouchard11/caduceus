@@ -19,7 +19,7 @@ from . import config, jev
 
 BLEND_BELOW = 0.6
 QUESTION_ID = "domain"
-SANITIZE = False   # flipped to True only by the pre-registered steerability eval (docs/classifier-steer-design.md)
+SANITIZE = True    # set by the 2026-10-11 steerability eval: raw FAIL (override 36%, fake system 56%, JSON 11%), sanitized PASS (0 flips)
 
 _INSTRUCTION_LINE = re.compile(
     r"^\s*(system|assistant|user|instruction[s]?|note to (the )?(classifier|model))\s*[:=]"
@@ -77,13 +77,15 @@ def _keyword(text: str) -> Classification:
     return Classification(top=top, probabilities={top: 1.0}, confidence=1.0, source="keyword")
 
 
-def domain_distribution(text: str, client=None, allow_jev: bool = True) -> Classification:
+def domain_distribution(text: str, client=None, allow_jev: bool = True,
+                        sanitize_text: Optional[bool] = None) -> Classification:
     if client is None:
         if not allow_jev or not jev.available():
             return _keyword(text)
         client = jev.Client()
     try:
-        answers = client.ask(sanitize(text) if SANITIZE else text, build_question())
+        use = SANITIZE if sanitize_text is None else sanitize_text
+        answers = client.ask(sanitize(text) if use else text, build_question())
         answer = answers[QUESTION_ID]
         raw = answer["probabilities"]
         known = set(config.DOMAIN_DESCRIPTIONS)
