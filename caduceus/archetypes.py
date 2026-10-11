@@ -262,3 +262,10 @@ def by_key(key: str) -> Archetype:
         if a.key == key:
             return a
     raise KeyError(key)
+
+
+def by_seat(seat: str) -> Archetype:
+    for a in LIBRARY:
+        if a.seat == seat:
+            return a
+    raise KeyError(seat)

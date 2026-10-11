@@ -247,16 +247,30 @@ def write_env(env: Dict[str, str]) -> None:
     os.chmod(p, 0o600)
 
 
+def known_seat_names() -> List[str]:
+    """The five shipped seats plus the archetype library's seats (0.5.0)."""
+    names = list(SEATS)
+    try:
+        from . import archetypes
+        names += [a.seat for a in archetypes.LIBRARY if a.seat not in SEATS]
+    except Exception:
+        pass
+    return names
+
+
 def seat_list(names: Optional[str]) -> List[Seat]:
-    """Parse 'forge,finisher' -> [Seat]; None -> full council."""
+    """Parse 'forge,finisher' -> [Seat]; None -> full council. Archetype seats
+    resolve through models.effective_seat (casting overrides applied)."""
     if not names:
         return [SEATS[n] for n in FULL_COUNCIL]
+    from .models import effective_seat
     picked = []
     for raw in names.split(","):
         n = raw.strip().lower()
-        if n not in SEATS:
-            raise SystemExit(f"unknown seat '{n}' (have: {', '.join(SEATS)})")
-        picked.append(SEATS[n])
+        try:
+            picked.append(effective_seat(n))
+        except KeyError:
+            raise SystemExit(f"unknown seat '{n}' (have: {', '.join(known_seat_names())})")
     return picked
 
 

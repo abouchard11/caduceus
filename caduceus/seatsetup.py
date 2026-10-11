@@ -443,8 +443,27 @@ def create_profile(seat: Seat, log: List[str]) -> bool:
     return False
 
 
-def install_soul(seat: Seat, log: List[str], force: bool = False) -> None:
+def cast_seat_names(cast_dir) -> List[str]:
+    """Seats named by a cast directory's CAST.json, in cast order."""
+    import json as _json
+    d = _json.loads((Path(cast_dir) / "CAST.json").read_text())
+    return [s["seat"] for s in d.get("seats", [])]
+
+
+def alex_cast_seats() -> List[str]:
+    """The operator's own seats: seats/CAST.json when present, else SEATS."""
+    cast = config.repo_root() / "seats" / "CAST.json"
+    try:
+        return cast_seat_names(cast.parent) if cast.exists() else list(SEATS)
+    except Exception:
+        return list(SEATS)
+
+
+def install_soul(seat: Seat, log: List[str], force: bool = False,
+                 src_dir: Optional[Path] = None) -> None:
     src = config.repo_root() / "seats" / seat.name / "SOUL.md"
+    if src_dir is not None and (Path(src_dir) / seat.name / "SOUL.md").exists():
+        src = Path(src_dir) / seat.name / "SOUL.md"   # a cast directory's rendered soul
     dst = profile_dir(seat.name) / "SOUL.md"
     if not src.exists():
         log.append(f"[!] missing seat soul source: {src}")
@@ -460,10 +479,16 @@ def install_soul(seat: Seat, log: List[str], force: bool = False) -> None:
     log.append(f"[+] soul installed for '{seat.name}'")
 
 
-def install_user_md(seat: Seat, log: List[str]) -> None:
-    src = config.repo_root() / "seats" / "USER.md"
+def install_user_md(seat: Seat, log: List[str], src: Optional[Path] = None,
+                    protect_alex: bool = False) -> None:
+    src = Path(src) if src else config.repo_root() / "seats" / "USER.md"
     dst = profile_dir(seat.name) / "USER.md"
     if not src.exists():
+        return
+    if protect_alex and seat.name in alex_cast_seats():
+        # Decision 26: a guest cast never displaces the operator's own seats
+        # silently. `cad init --cast DIR --take-over` is the explicit swap.
+        log.append(f"[=] USER.md for '{seat.name}' kept (Alex's seat; --take-over to swap)")
         return
     # USER.md is generated from seats/PROFILE.json (0.4.0): compare content,
     # never a marker, so a regenerated file reaches the seat on `cad init`.
@@ -658,13 +683,22 @@ def gateway_commands(seats: List[Seat]) -> List[str]:
 
 def init(seat_names: Optional[List[str]] = None, force_soul: bool = False,
          cron: bool = False, guard_write: bool = False,
-         enable_api: bool = True) -> List[str]:
+         enable_api: bool = True, cast_dir=None, take_over: bool = False) -> List[str]:
     log: List[str] = []
     if not hermes_bin():
         log.append("[!] FATAL: `hermes` not on PATH. Install Hermes Agent first.")
         return log
     api_key = config.ensure_api_key()
-    names = seat_names or list(SEATS.keys())
+    cast_dir = Path(cast_dir) if cast_dir else None
+    alex_dir = config.repo_root() / "seats"
+    guest = cast_dir is not None and cast_dir.resolve() != alex_dir.resolve()
+    if cast_dir is not None and not (cast_dir / "CAST.json").exists():
+        log.append(f"[!] FATAL: no CAST.json in {cast_dir} - run `cad compile --profile ... --write` first")
+        return log
+    names = seat_names or (cast_seat_names(cast_dir) if cast_dir else list(SEATS.keys()))
+    if guest:
+        log.append(f"[i] guest cast {cast_dir}: {', '.join(names)}"
+                   + ("" if take_over else "; Alex's own seats keep his USER.md (--take-over to swap)"))
     created = []
     from .models import effective_seat  # late import: avoids cycle at load
     for name in names:
@@ -674,8 +708,9 @@ def init(seat_names: Optional[List[str]] = None, force_soul: bool = False,
         # provider that 401s and re-applying sparring's no-tools lockdown.)
         seat = effective_seat(name)
         if create_profile(seat, log):
-            install_soul(seat, log, force=force_soul)
-            install_user_md(seat, log)
+            install_soul(seat, log, force=force_soul, src_dir=cast_dir)
+            install_user_md(seat, log, src=(cast_dir / "USER.md") if cast_dir else None,
+                            protect_alex=guest and not take_over)
             patch_profile_config(seat, api_key, log, enable_api=enable_api)
             created.append(name)
     install_skill(created, log)
@@ -688,7 +723,7 @@ def init(seat_names: Optional[List[str]] = None, force_soul: bool = False,
     log.append("")
     log.append("Seats provisioned. Optional always-on gateways (event-driven, "
                "$0 idle):")
-    for cmd in gateway_commands([SEATS[n] for n in created]):
+    for cmd in gateway_commands([effective_seat(n) for n in created]):
         log.append(f"    {cmd}")
     log.append("Then verify with: cad doctor")
     return log

@@ -11,6 +11,7 @@ from pathlib import Path
 
 from . import brief, config, dashboard, doctor, eval_finisher, guard, models, seatsetup, telegram, budgets
 from . import compile as compile_mod, evalpair, jev, loadout, manifest as manifest_mod, profile as profile_mod
+from . import archetypes as archetypes_mod
 from .config import SEATS, seat_list, heterogeneity_warnings
 from .council import Council, extract_json
 from .hermes import MockTransport, OneshotTransport
@@ -44,6 +45,8 @@ def cmd_init(args):
         cron=args.cron,
         guard_write=args.guard_write,
         enable_api=not args.no_api,
+        cast_dir=getattr(args, "cast", None),
+        take_over=getattr(args, "take_over", False),
     )
     _print("\n".join(log))
 
@@ -67,10 +70,25 @@ def cmd_brief(args):
         _print(f"[+] written to {path}")
 
 
+def _cast_council(cast_dir, quick: bool):
+    """The seats a cast directory staffs: its first two for a quick pair, its
+    first four for a full council, in cast order (Decision 25/26)."""
+    names = seatsetup.cast_seat_names(cast_dir)
+    if not names:
+        raise SystemExit(f"CAST.json in {cast_dir} names no seats")
+    return [models.effective_seat(n) for n in names[: 2 if quick else 4]]
+
+
 def cmd_council_ask(args):
-    seats = seat_list(args.seats) if args.seats else (
-        [SEATS[n] for n in config.QUICK_PAIR] if args.quick
-        else [SEATS[n] for n in config.FULL_COUNCIL])
+    cast = getattr(args, "cast", None)
+    if args.seats:
+        seats = seat_list(args.seats)
+    elif cast:
+        seats = _cast_council(Path(cast), args.quick)
+        _print(f"cast:     {Path(cast).resolve()}")
+    else:
+        seats = ([SEATS[n] for n in config.QUICK_PAIR] if args.quick
+                 else [SEATS[n] for n in config.FULL_COUNCIL])
     seats = [models.effective_seat(s.name) for s in seats]  # casting overrides
     for w in heterogeneity_warnings(seats):
         _print(f"[warn] {w}")
@@ -1006,6 +1024,41 @@ def cmd_eval_loadout(args):
     _print(f"  cad ledger settle {pr.b.run_id} --winner <seat>")
 
 
+
+def cmd_onboard(args):
+    """One verb for a second person: compile beside their PROFILE.json, say what
+    their profile staffs and why, optionally provision and ask (0.5.0, §11.4)."""
+    import argparse as _ap
+    args.profile = args.profile_path
+    args.write = True
+    p = _load_profile(args)
+    c = compile_mod.cast(p)
+    cast_dir = _cast_dir(args)
+    res = compile_mod.write_outputs(p, c, cast_dir, write=True)
+    name = p.person.get("name", "?")
+    _print(f"{name}: {', '.join(s.seat for s in c.seats)}  (cast dir {cast_dir})")
+    _print("Your profile staffs:")
+    for s in c.seats:
+        a = archetypes_mod.by_key(s.key)
+        _print(f"  {s.display:<12} {'fired' if s.fired else 'filled':<6} {s.reason:<42} {a.job}")
+    for w in c.warnings:
+        _print(f"[warn] {w}")
+    written = [k for k, v in res.items() if v == "written"]
+    _print("written: " + (", ".join(written) if written else "nothing new"))
+    if args.provision:
+        for line in seatsetup.init(cast_dir=cast_dir, take_over=args.take_over):
+            _print(line)
+    else:
+        _print(f"provision: cad init --cast {cast_dir}" + (" --take-over" if args.take_over else ""))
+    if args.ask:
+        ns = _ap.Namespace(question=args.ask, seats=None, cast=str(cast_dir), quick=False,
+                           no_escalate=False, dry_run=args.dry_run, transport="auto",
+                           context=None, context_file=args.context_file)
+        cmd_council_ask(ns)
+    else:
+        _print(f'ask: cad council ask --cast {cast_dir} "QUESTION"')
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="cad",
@@ -1019,6 +1072,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--force-soul", action="store_true", help="overwrite existing SOUL.md files")
     s.add_argument("--guard-write", action="store_true", help="append guard hook to config.yaml files")
     s.add_argument("--no-api", action="store_true", help="skip api_server blocks in seat configs")
+    s.add_argument("--cast", help="provision the seats of this cast directory (CAST.json) instead of the five")
+    s.add_argument("--take-over", action="store_true", help="a guest cast may replace Alex's USER.md in shared seats (backed up)")
     s.set_defaults(fn=cmd_init)
 
     s = sub.add_parser("doctor", help="verify the engine end to end")
@@ -1043,6 +1098,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--dry-run", action="store_true", help="mock transport, no model calls")
     s.add_argument("--live", action="store_true",
                    help="broadcast attributed results to the Telegram council group")
+    s.add_argument("--cast", help="run this cast directory's seats (CAST.json) instead of the default council")
     s.set_defaults(fn=cmd_council_ask)
     s = csub.add_parser("review-command", help="FINISHER reviews a risky command (two-person rule)")
     s.add_argument("command", nargs=argparse.REMAINDER)
@@ -1226,6 +1282,16 @@ def build_parser() -> argparse.ArgumentParser:
     cp.add_argument("--write", action="store_true", help="write seats/USER.md + seats/CAST.json on change")
     cp.add_argument("--profile", help="a PROFILE.json; outputs land beside it (a cast directory)")
     cp.add_argument("--out", help="write the cast outputs into this directory instead")
+
+    ob = sub.add_parser("onboard", help="a second person: compile their PROFILE.json beside itself, provision, ask")
+    ob.add_argument("profile_path", help="path to the person's PROFILE.json")
+    ob.add_argument("--out", help="cast directory (default: beside the profile)")
+    ob.add_argument("--provision", action="store_true", help="run `cad init --cast` for the cast")
+    ob.add_argument("--take-over", action="store_true", help="let the guest cast replace Alex's USER.md in shared seats")
+    ob.add_argument("--ask", help="run the first council on this cast with this question")
+    ob.add_argument("--context-file")
+    ob.add_argument("--dry-run", action="store_true", help="mock transport for --ask")
+    ob.set_defaults(fn=cmd_onboard)
     cp.set_defaults(fn=cmd_compile_dispatch)
     csub = cp.add_subparsers(dest="ccmd")
     s = csub.add_parser("manifest", help="scan SKILL.md across the roots into ~/.caduceus/skill-manifest.json")

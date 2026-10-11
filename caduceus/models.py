@@ -70,7 +70,13 @@ def save_casting(casting: Dict[str, Dict]) -> None:
 def effective_seat(name: str) -> Seat:
     """Seat with any casting override applied. This is the runtime truth for
     what model sits in a seat; SEATS holds the shipped defaults."""
-    seat = SEATS[name]
+    if name in SEATS:
+        seat = SEATS[name]
+    else:
+        # 0.5.0: archetype seats (plant, coordinator, anchor, driver) resolve
+        # through the library's defaults; KeyError for anything else.
+        from . import archetypes, compile as compile_mod
+        seat = compile_mod.seat_for(archetypes.by_seat(name).key)
     ov = load_casting().get(name)
     if not ov:
         return seat
