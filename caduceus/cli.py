@@ -196,9 +196,46 @@ def cmd_ledger_runs(args):
     led.close()
 
 
+
+def _known_seats(led, run_id=None):
+    """Seat names a settlement may name: the five SEATS, the archetype library's
+    seats, and whatever seats the run itself registered."""
+    known = set(SEATS)
+    try:
+        from . import archetypes
+        known |= {a.seat for a in archetypes.LIBRARY}
+    except Exception:
+        pass
+    if run_id:
+        row = led.conn.execute("SELECT seats FROM council_runs WHERE run_id=?", (run_id,)).fetchone()
+        if row and row[0]:
+            known |= {s.strip().lower() for s in row[0].split(",") if s.strip()}
+    return known
+
+
+def _seat_names(values, led, run_id=None, flag="seat"):
+    """`--winner finisher,forge --winner recon` -> ['finisher', 'forge', 'recon'],
+    every name validated. 2026-10-10: comma lists were stored verbatim as a seat
+    called "finisher,forge"; a 2026-09-29 row stored a --note typed into the
+    seat slot. Both are refused here before anything is written."""
+    names = []
+    for v in values or []:
+        for part in str(v).split(","):
+            s = part.strip().lower()
+            if s and s not in names:
+                names.append(s)
+    known = _known_seats(led, run_id)
+    bad = [n for n in names if n not in known]
+    if bad:
+        raise SystemExit(f"unknown seat(s) for {flag}: {', '.join(repr(b) for b in bad)}. "
+                         f"Known: {', '.join(sorted(known))}")
+    return names
+
+
 def cmd_ledger_record(args):
     led = Ledger()
-    oid = led.record(args.seat, args.domain, args.result,
+    seat = _seat_names([args.seat], led, args.ref or None, "seat")[0]
+    oid = led.record(seat, args.domain, args.result,
                      task_ref=args.ref or "", note=args.note or "")
     _print(f"recorded {oid}: {args.seat}/{args.domain} -> {args.result}")
     led.close()
@@ -215,10 +252,10 @@ def cmd_ledger_settle(args):
         except Exception:
             pass
     out = led.settle(args.run_id,
-                     winners=args.winner or [],
-                     losers=args.loser or [],
-                     mixed=args.mixed or [],
-                     unexecuted=args.unexecuted or [],
+                     winners=_seat_names(args.winner, led, args.run_id, "--winner"),
+                     losers=_seat_names(args.loser, led, args.run_id, "--loser"),
+                     mixed=_seat_names(args.mixed, led, args.run_id, "--mixed"),
+                     unexecuted=_seat_names(args.unexecuted, led, args.run_id, "--unexecuted"),
                      note=args.note or "",
                      models=seat_models)
     for seat, oid in out.items():
@@ -242,10 +279,10 @@ def cmd_ledger_resettle(args):
         "SELECT COUNT(*) FROM outcomes WHERE task_ref=? AND voided=0", (args.run_id,)
     ).fetchone()[0]
     out = led.resettle(args.run_id,
-                       winners=args.winner or [],
-                       losers=args.loser or [],
-                       mixed=args.mixed or [],
-                       unexecuted=args.unexecuted or [],
+                       winners=_seat_names(args.winner, led, args.run_id, "--winner"),
+                       losers=_seat_names(args.loser, led, args.run_id, "--loser"),
+                       mixed=_seat_names(args.mixed, led, args.run_id, "--mixed"),
+                       unexecuted=_seat_names(args.unexecuted, led, args.run_id, "--unexecuted"),
                        note=args.note or "",
                        models=seat_models)
     _print(f"resettled {args.run_id}: {voided} prior outcome(s) voided")
