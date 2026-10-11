@@ -11,6 +11,7 @@ so a council never waits on Jev.
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
@@ -18,6 +19,25 @@ from . import config, jev
 
 BLEND_BELOW = 0.6
 QUESTION_ID = "domain"
+SANITIZE = False   # flipped to True only by the pre-registered steerability eval (docs/classifier-steer-design.md)
+
+_INSTRUCTION_LINE = re.compile(
+    r"^\s*(system|assistant|user|instruction[s]?|note to (the )?(classifier|model))\s*[:=]"
+    r"|\b(ignore|disregard|override)\b.*\b(domain|classif|instruction)"
+    r"|\bclassif(y|ied)\b.*\bas\b"
+    r"|\btreat (it|this)\b.*\bas\b"
+    r"|\bdomain\s*[:=]",
+    re.I)
+_DOMAIN_JSON = re.compile(r"\{[^{}]*\"domain\"[^{}]*\}", re.I)
+
+
+def sanitize(text: str) -> str:
+    """Strip instruction-shaped lines and JSON objects naming a domain before the
+    Jev call. Only the classifier sees live question text; this is its guard."""
+    kept = [l for l in text.splitlines() if not _INSTRUCTION_LINE.search(l)]
+    out = "\n".join(kept)
+    out = _DOMAIN_JSON.sub("", out)
+    return re.sub(r"\n{3,}", "\n\n", out).strip()
 
 
 @dataclass
@@ -63,7 +83,7 @@ def domain_distribution(text: str, client=None, allow_jev: bool = True) -> Class
             return _keyword(text)
         client = jev.Client()
     try:
-        answers = client.ask(text, build_question())
+        answers = client.ask(sanitize(text) if SANITIZE else text, build_question())
         answer = answers[QUESTION_ID]
         raw = answer["probabilities"]
         known = set(config.DOMAIN_DESCRIPTIONS)

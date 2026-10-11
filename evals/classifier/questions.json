@@ -1,0 +1,152 @@
+[
+ {
+  "id": "implementation-1",
+  "domain": "implementation",
+  "text": "Refactor the ledger module so register_run takes a dataclass instead of nine positional args."
+ },
+ {
+  "id": "implementation-2",
+  "domain": "implementation",
+  "text": "Add a --json flag to cad compile status and make the output stable for scripts."
+ },
+ {
+  "id": "implementation-3",
+  "domain": "implementation",
+  "text": "The manifest scanner is slow on the plugin cache; implement a cached mtime index."
+ },
+ {
+  "id": "review-1",
+  "domain": "review",
+  "text": "Review PR #22 for defects before I merge it to main."
+ },
+ {
+  "id": "review-2",
+  "domain": "review",
+  "text": "Audit the loadout install path for anything that could remove a file outside skills/loadout."
+ },
+ {
+  "id": "review-3",
+  "domain": "review",
+  "text": "Check the resettle command's transaction for a crash window between void and re-record."
+ },
+ {
+  "id": "types-1",
+  "domain": "types",
+  "text": "Should PROFILE.json get a JSON Schema, and which fields must be required?"
+ },
+ {
+  "id": "types-2",
+  "domain": "types",
+  "text": "Design the TypeScript interface for the cast file so the dashboard can type-check it."
+ },
+ {
+  "id": "types-3",
+  "domain": "types",
+  "text": "The Zod schema for the memo payload accepts null confidence; tighten it."
+ },
+ {
+  "id": "testing-1",
+  "domain": "testing",
+  "text": "Which tests are missing for the paired evaluation report, and how would you seed the ledger for them?"
+ },
+ {
+  "id": "testing-2",
+  "domain": "testing",
+  "text": "Write a pytest plan for the manifest scanner's symlink handling."
+ },
+ {
+  "id": "testing-3",
+  "domain": "testing",
+  "text": "Our e2e coverage of cad init is zero; what should the first three tests pin?"
+ },
+ {
+  "id": "security-1",
+  "domain": "security",
+  "text": "Could a hostile SKILL.md escape the seat's loadout directory during install?"
+ },
+ {
+  "id": "security-2",
+  "domain": "security",
+  "text": "Where could the TypeSafe API key leak into logs or memos?"
+ },
+ {
+  "id": "security-3",
+  "domain": "security",
+  "text": "Is the two-person rule bypassable by a seat that renames a CRITICAL command?"
+ },
+ {
+  "id": "research-1",
+  "domain": "research",
+  "text": "Find what the Free-MAD paper measured about conformity in multi-agent debate and cite it."
+ },
+ {
+  "id": "research-2",
+  "domain": "research",
+  "text": "Compare the pricing of OpenRouter's deepseek-v4 endpoints against first-party, with sources."
+ },
+ {
+  "id": "research-3",
+  "domain": "research",
+  "text": "What does the PrinciplesYou science paper say about test-retest reliability of facets?"
+ },
+ {
+  "id": "strategy-1",
+  "domain": "strategy",
+  "text": "Should Caduceus stay private until the kill criterion passes, or publish the demo now?"
+ },
+ {
+  "id": "strategy-2",
+  "domain": "strategy",
+  "text": "Pick the first market for the complement compiler and justify the sequencing."
+ },
+ {
+  "id": "strategy-3",
+  "domain": "strategy",
+  "text": "What is the pricing posture for a concierge council if a peer asks to pay?"
+ },
+ {
+  "id": "comms-1",
+  "domain": "comms",
+  "text": "Rewrite this cold message to a peer so it reads as a favor, not a pitch."
+ },
+ {
+  "id": "comms-2",
+  "domain": "comms",
+  "text": "Draft the reply to Erik on the stalled pull request without sounding like a nudge."
+ },
+ {
+  "id": "comms-3",
+  "domain": "comms",
+  "text": "Tone-check the LinkedIn post about the believability ledger before it goes out."
+ },
+ {
+  "id": "infra-1",
+  "domain": "infra",
+  "text": "The launchd job calls the editable install; how do we deploy a new version without breaking the Monday run?"
+ },
+ {
+  "id": "infra-2",
+  "domain": "infra",
+  "text": "Set up a cron that writes the morning brief and alerts when it did not land."
+ },
+ {
+  "id": "infra-3",
+  "domain": "infra",
+  "text": "Why does the sparring gateway sit in 'starting' and how do we make the daemon recover?"
+ },
+ {
+  "id": "data-1",
+  "domain": "data",
+  "text": "Write the SQL that ranks seats by weighted win rate per domain from the outcomes table."
+ },
+ {
+  "id": "data-2",
+  "domain": "data",
+  "text": "Design the ETL from ledger.db into a CSV the dashboard can plot weekly."
+ },
+ {
+  "id": "data-3",
+  "domain": "data",
+  "text": "Which analytics table should hold per-run cost so we can join it to settlements?"
+ }
+]

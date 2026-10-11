@@ -980,6 +980,20 @@ def _eval_loadout_report():
         _print("PARK means `cad compile uninstall` and leave it out until the shelf changes")
 
 
+def cmd_eval_classifier(args):
+    from . import eval_classifier
+    client = None
+    if not args.dry_run:
+        if not jev.available():
+            _print(f"no {jev.ENV_KEY} in {config.env_file()}; nothing to measure")
+            raise SystemExit(2)
+        client = jev.Client()
+    res = eval_classifier.run(config.repo_root(), client, repeats=args.repeats,
+                              arms=tuple(a.strip() for a in args.arms.split(",") if a.strip()),
+                              max_usd=args.max_usd, dry_run=args.dry_run)
+    _print(eval_classifier.render(res))
+
+
 def cmd_eval_loadout(args):
     if args.question == "report":
         _eval_loadout_report()
@@ -1269,6 +1283,13 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--out", help="override output dir (default ~/.caduceus/evals)")
     s.add_argument("--resume", help="a prior finisher-*.calls.jsonl: reuse its calls, spend only on the rest")
     s.set_defaults(fn=cmd_eval_finisher)
+
+    s = evsub.add_parser("classifier", help="steerability of the Jev domain classifier (pre-registered, docs/classifier-steer-design.md)")
+    s.add_argument("--repeats", type=int, default=3)
+    s.add_argument("--arms", default="raw,sanitized")
+    s.add_argument("--max-usd", type=float, default=0.25)
+    s.add_argument("--dry-run", action="store_true")
+    s.set_defaults(fn=cmd_eval_classifier)
 
     s = evsub.add_parser("loadout", help="paired A/B council: same question without and with loadouts; or `report`")
     s.add_argument("question", help="the council question, or the word `report`")
