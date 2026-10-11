@@ -1,0 +1,41 @@
+{
+  "schema": "caduceus.cast.v1",
+  "profile_sha256": "27e2399da1f5e97b2cf393df43d495cc0ca3f77184af2c7be78d775a72f1eefc",
+  "cast_sha256": "209e48016cbd492b7f6dc34a121ff3f18ddafcc65bb32f8fa3c331b97ffa05c5",
+  "generated": "2026-10-11T00:48:39",
+  "seats": [
+    {
+      "key": "plant",
+      "seat": "plant",
+      "display": "PLANT",
+      "fired": true,
+      "margin": 5.0,
+      "reason": "Original 35 vs ≤40"
+    },
+    {
+      "key": "coordinator",
+      "seat": "coordinator",
+      "display": "COORDINATOR",
+      "fired": true,
+      "margin": 5.0,
+      "reason": "Leadership 35 vs ≤40"
+    },
+    {
+      "key": "anchor",
+      "seat": "anchor",
+      "display": "ANCHOR",
+      "fired": false,
+      "margin": -15.0,
+      "reason": "Composed 55 vs ≤40"
+    },
+    {
+      "key": "driver",
+      "seat": "driver",
+      "display": "DRIVER",
+      "fired": true,
+      "margin": 50.0,
+      "reason": "least-like Shaper"
+    }
+  ],
+  "warnings": []
+}
