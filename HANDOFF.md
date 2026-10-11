@@ -26,9 +26,9 @@ Done today, in order:
    trio, 1758b8 and 0a05e3 (all unexecuted, zero weight, resettle if the advice later runs),
    383a56 (RECON mixed: no plugin filed, outbound never ran). Only pair 1's two arms remain open.
    Found and fixed on the way (PR #22): `cad ledger settle --winner a,b` used to store a seat named
-   "a,b"; settle/resettle/record now split and validate names. One malformed row from 2026-09-29
-   (run 20260929-233211-ea55cf, a --note typed into the seat slot) is still live: resettle it with
-   the real verdict.
+   "a,b"; settle/resettle/record now split and validate names. The 2026-09-29 row that had a
+   --note in the seat slot (run 20260929-233211-ea55cf) was re-settled on 2026-10-11 from its own
+   recorded text: recon and sparring mixed. No malformed rows remain.
 7. Demand probe drafted by ENVOY+SPARRING (run 20261010-215938-f356f5) and staged in
    hq/outputs/demand-probe-2026-10-10.md (the Drafts-app connector failed on its own side). The one
    message, the yes/maybe replies, the rules, the pass line and a five-row worksheet are there.

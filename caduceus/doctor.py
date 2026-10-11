@@ -325,7 +325,11 @@ def _loadout_row() -> Tuple[str, str, str]:
             return (OK, "loadout", "not installed (clock not started)")
         n = sum(s["installed"] for s in st["seats"].values())
         k = sum(1 for s in st["seats"].values() if s["installed"])
-        r = evalpair.report(Ledger())
+        led = Ledger()
+        try:
+            r = evalpair.report(led)
+        finally:
+            led.close()
         days = int(r["days"]) if r["days"] is not None else 0
         detail = (f"{n} skills across {k} seats; day {days}/{evalpair.RULE_DAYS}; pairs {r['pairs']} "
                   f"(B {r['b_wins']} / A {r['a_wins']}, {r['unsettled']} unsettled); {r['verdict']}")

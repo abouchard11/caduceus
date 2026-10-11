@@ -23,4 +23,4 @@ bd995b, 1758b8, 0a05e3 `--unexecuted` all seats; 383a56 `--mixed recon --unexecu
 All eight of the day's settlements were first written with comma lists that the CLI stored as literal
 seat names; PR #22 fixed the CLI and every run was re-settled with real names (prior rows voided,
 history kept). Resettle any of these if reality differs: `cad ledger resettle <run> --winner <seat>`.
-Still malformed and yours: 20260929-233211-ea55cf (a note in the seat slot).
+20260929-233211-ea55cf (a note in the seat slot) re-settled 2026-10-11 from that note's own text: recon and sparring mixed.

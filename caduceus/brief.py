@@ -179,7 +179,11 @@ def _compile_clock() -> Optional[str]:
     try:
         if loadout.first_install_ts() is None:
             return None
-        r = evalpair.report(Ledger())
+        led = Ledger()
+        try:
+            r = evalpair.report(led)
+        finally:
+            led.close()
         days = int(r["days"]) if r["days"] is not None else 0
         return (f"day {days}/{evalpair.RULE_DAYS} · B {r['b_wins']} · A {r['a_wins']} · "
                 f"{r['unsettled']} pairs unsettled · {r['verdict']}")
