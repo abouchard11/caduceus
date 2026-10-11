@@ -546,3 +546,16 @@ def test_profile_row_warns_when_a_seat_copy_is_stale(tmp_path, monkeypatch):
     (pd / "USER.md").write_text("# CADUCEUS PRINCIPAL PROFILE — stale copy\n")
     status, detail = _row(doctor.checks(), "profile")
     assert status == doctor.WARN and "cad init" in detail and "finisher" in detail
+
+
+def test_root_third_party_guard_is_ok_not_fail():
+    """PR #17/18 put `cad guard hook --only third-party` in the operator's root
+    config on purpose (R23). Only a FULL guard in the root is the incident class."""
+    config.hermes_home().mkdir(parents=True, exist_ok=True)
+    root = config.hermes_home() / "config.yaml"
+    root.write_text("hooks:\n  pre_tool_call:\n    - matcher: x\n      command: \"/opt/homebrew/bin/cad guard hook --only third-party\"\n")
+    status, detail = _row(doctor.checks(), "guard hook (root)")
+    assert status == doctor.OK and "third-party" in detail
+    root.write_text("hooks:\n  pre_tool_call:\n    - matcher: x\n      command: \"/opt/homebrew/bin/cad guard hook\"\n")
+    status, detail = _row(doctor.checks(), "guard hook (root)")
+    assert status == doctor.FAIL

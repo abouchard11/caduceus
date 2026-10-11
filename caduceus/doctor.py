@@ -152,7 +152,15 @@ def checks() -> List[Tuple[str, str, str]]:
                     "--guard-write` or paste the block from `cad guard install`"))
 
     root_cfg = config.hermes_home() / "config.yaml"
-    if root_cfg.exists() and "cad guard hook" in root_cfg.read_text():
+    root_text = root_cfg.read_text() if root_cfg.exists() else ""
+    root_hooks = [l for l in root_text.splitlines() if "cad guard hook" in l]
+    if root_hooks and all("--only third-party" in l for l in root_hooks):
+        # Deliberate (PR #17/18, rule R23): the operator stays unguarded for
+        # their own work; only writes into repositories they do not own are
+        # judged. A FULL guard in the root is the 2026-08-19 incident class.
+        out.append((OK, "guard hook (root)",
+                    "third-party-only hook (R23) - operator's own work stays unguarded"))
+    elif root_hooks:
         out.append((FAIL, "guard hook (root)",
                     "guard hook found in root config.yaml - the operator's own "
                     "profile must stay unguarded; remove the hooks: block by hand"))
