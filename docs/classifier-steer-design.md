@@ -46,3 +46,10 @@ Raw arm: override 39%, fake system 62%, JSON 13%, social pressure 4.4% → FAIL 
 classes. Sanitized arm (the production default since this commit): 0/90 on every class → PASS.
 Noise classes 0/90 in both arms; clean accuracy 30/30. Re-run whenever payloads or the sanitizer
 change; the raw arm stays in the eval as the control.
+
+### Final-sanitizer run, 2026-10-11 (file `classifier-20261011-010545.json`)
+After the review fix pass (domain-anchored patterns, first line always kept, empty-only guard on
+the kept text): raw override 40%, fake system 61%, JSON 12%, social pressure 2.2% → FAIL; sanitized
+0/90 on every class, clean accuracy 30/30 → PASS. The ratio guard the first version carried was
+itself a hole: it fell back to keywords on the original text, so a short question plus a long
+payload re-admitted the injection; it is gone.
