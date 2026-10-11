@@ -766,6 +766,15 @@ def _load_profile(args=None):
         raise SystemExit(f"profile invalid: {e}")
 
 
+def _cast_dir(args=None) -> Path:
+    """Where compile writes: --out, else beside --profile, else the repo's seats/."""
+    if getattr(args, "out", None):
+        return Path(args.out)
+    if getattr(args, "profile", None):
+        return compile_mod.cast_dir_for(Path(args.profile))
+    return config.repo_root() / "seats"
+
+
 def _manifest_or_exit():
     p = manifest_mod.default_manifest_path()
     if not p.exists():
@@ -785,12 +794,14 @@ def cmd_compile(args):
         _print(f"  {s.display:<12} {'fired' if s.fired else 'filled':<6} {s.reason}")
     for w in c.warnings:
         _print(f"[warn] {w}")
-    res = compile_mod.write_outputs(p, c, config.repo_root(), write=args.write)
+    cast_dir = _cast_dir(args)
+    _print(f"cast dir: {cast_dir}")
+    res = compile_mod.write_outputs(p, c, cast_dir, write=args.write)
     for k, v in res.items():
         _print(f"{k}: {v}")
     if not args.write and res.get("USER.md") == "would-write":
         import difflib
-        current = config.repo_root() / "seats" / "USER.md"
+        current = cast_dir / "USER.md"
         old_lines = current.read_text().splitlines() if current.exists() else []
         for line in difflib.unified_diff(old_lines, compile_mod.render_user_md(p, c).splitlines(),
                                          "seats/USER.md", "seats/USER.md (rendered)", lineterm="", n=1):
@@ -1213,7 +1224,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     cp = sub.add_parser("compile", help="profile -> cast -> USER.md; skill manifest, loadout proposal, install")
     cp.add_argument("--write", action="store_true", help="write seats/USER.md + seats/CAST.json on change")
-    cp.add_argument("--profile", help="override seats/PROFILE.json")
+    cp.add_argument("--profile", help="a PROFILE.json; outputs land beside it (a cast directory)")
+    cp.add_argument("--out", help="write the cast outputs into this directory instead")
     cp.set_defaults(fn=cmd_compile_dispatch)
     csub = cp.add_subparsers(dest="ccmd")
     s = csub.add_parser("manifest", help="scan SKILL.md across the roots into ~/.caduceus/skill-manifest.json")

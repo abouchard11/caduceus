@@ -186,15 +186,27 @@ def _same_cast(existing: str, fresh: str) -> bool:
     return a == b
 
 
-def write_outputs(p: Profile, c: Cast, repo_root, write: bool) -> Dict[str, str]:
-    """Write seats/USER.md and seats/CAST.json only when their content changes.
-    Returns per-file: 'unchanged' | 'written' | 'would-write'."""
-    seats_dir = Path(repo_root) / "seats"
+def cast_dir_for(profile_path: Path) -> Path:
+    """A cast is a directory: the one holding PROFILE.json."""
+    return Path(profile_path).resolve().parent
+
+
+def write_outputs(p: Profile, c: Cast, cast_dir, write: bool) -> Dict[str, str]:
+    """Write USER.md, CAST.json and, for archetype seats with no hand-written soul in
+    the repo's seats/, <seat>/SOUL.md into the cast directory, each only when its
+    content changes. Returns per-file: 'unchanged' | 'written' | 'would-write'."""
+    seats_dir = Path(cast_dir)
     out: Dict[str, str] = {}
     targets = {"USER.md": (render_user_md(p, c), lambda old, new: old == new),
                "CAST.json": (_cast_text(c), _same_cast)}
+    for s in c.seats:
+        a = archetypes.by_key(s.key)
+        if a.soul_template.startswith("(hand-written"):
+            continue   # the five hand-written souls stay in the repo's seats/
+        targets[f"{s.seat}/SOUL.md"] = (a.soul_template, lambda old, new: old == new)
     for fname, (text, same) in targets.items():
         path = seats_dir / fname
+        path.parent.mkdir(parents=True, exist_ok=True) if write else None
         old = path.read_text() if path.exists() else None
         if old is not None and same(old, text):
             out[fname] = "unchanged"

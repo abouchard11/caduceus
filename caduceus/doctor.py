@@ -305,7 +305,7 @@ def _profile_row() -> Tuple[str, str, str]:
         return (WARN, "profile", f"no seats/PROFILE.json at {path.parent} - USER.md is hand-written")
     try:
         p = profile_mod.load(path)
-        res = compile_mod.write_outputs(p, compile_mod.cast(p), config.repo_root(), write=False)
+        res = compile_mod.write_outputs(p, compile_mod.cast(p), config.repo_root() / "seats", write=False)
     except Exception as e:  # a broken profile is a warning, never a doctor crash
         return (WARN, "profile", f"PROFILE.json unreadable: {e}")
     stale = [k for k, v in res.items() if v != "unchanged"]

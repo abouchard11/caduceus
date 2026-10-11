@@ -102,13 +102,13 @@ def test_write_outputs_idempotent(tmp_path):
     (tmp_path / "seats").mkdir()
     p = profile.load(ROOT / "seats" / "PROFILE.json")
     c = comp.cast(p)
-    r1 = comp.write_outputs(p, c, tmp_path, write=True)
-    r2 = comp.write_outputs(p, c, tmp_path, write=True)
+    r1 = comp.write_outputs(p, c, tmp_path / "seats", write=True)
+    r2 = comp.write_outputs(p, c, tmp_path / "seats", write=True)
     assert r1["USER.md"] == "written" and r2["USER.md"] == "unchanged"
     assert r1["CAST.json"] == "written" and r2["CAST.json"] == "unchanged"
     assert json.loads((tmp_path / "seats" / "CAST.json").read_text())["schema"] == "caduceus.cast.v1"
     (tmp_path / "seats" / "USER.md").write_text("stale")
-    r3 = comp.write_outputs(p, c, tmp_path, write=False)
+    r3 = comp.write_outputs(p, c, tmp_path / "seats", write=False)
     assert r3["USER.md"] == "would-write"
     assert (tmp_path / "seats" / "USER.md").read_text() == "stale"
 
@@ -116,7 +116,7 @@ def test_write_outputs_idempotent(tmp_path):
 def test_repo_user_md_is_current():
     """The committed USER.md is exactly what compile renders from PROFILE.json."""
     p = profile.load(ROOT / "seats" / "PROFILE.json")
-    assert comp.write_outputs(p, comp.cast(p), ROOT, write=False)["USER.md"] == "unchanged"
+    assert comp.write_outputs(p, comp.cast(p), ROOT / "seats", write=False)["USER.md"] == "unchanged"
 
 
 # ---- a second person is a file swap ------------------------------------------
@@ -132,3 +132,49 @@ def test_example_thinker_casts_differently():
     assert 4 <= len(c.seats) <= 6
     md = comp.render_user_md(p, c)
     assert "Example Thinker" in md and md.endswith(comp.CONTRACT_BLOCK)
+
+
+# ---- 0.5.0: a cast is a directory --------------------------------------------
+
+def test_write_outputs_renders_souls_for_archetype_seats_only(tmp_path):
+    import shutil
+    cast_dir = tmp_path / "thinker"
+    cast_dir.mkdir()
+    shutil.copy(ROOT / "examples" / "PROFILE-thinker.json", cast_dir / "PROFILE.json")
+    p = profile.load(cast_dir / "PROFILE.json")
+    c = comp.cast(p)
+    res = comp.write_outputs(p, c, cast_dir, write=True)
+    assert res["USER.md"] == "written" and res["CAST.json"] == "written"
+    assert (cast_dir / "plant" / "SOUL.md").exists() and "PLANT — CADUCEUS SEAT" in (cast_dir / "plant" / "SOUL.md").read_text()
+    assert (cast_dir / "driver" / "SOUL.md").exists()
+    assert res["plant/SOUL.md"] == "written"
+    assert not (ROOT / "seats" / "plant").exists()
+    # Alex's cast writes no souls: all five are hand-written in seats/
+    alex = tmp_path / "alex"
+    alex.mkdir()
+    shutil.copy(ROOT / "seats" / "PROFILE.json", alex / "PROFILE.json")
+    pa = profile.load(alex / "PROFILE.json")
+    ra = comp.write_outputs(pa, comp.cast(pa), alex, write=True)
+    assert not any(k.endswith("SOUL.md") for k in ra) and not (alex / "finisher").exists()
+
+
+def test_cli_compile_profile_writes_beside_the_profile(tmp_path, monkeypatch, capsys):
+    import shutil
+    from caduceus import cli
+    repo = tmp_path / "repo"
+    (repo / "seats").mkdir(parents=True)
+    for f in ["PROFILE.json", "DENYLIST.json", "USER.md", "CAST.json"]:
+        shutil.copy(ROOT / "seats" / f, repo / "seats" / f)
+    monkeypatch.setenv("CADUCEUS_REPO", str(repo))
+    guest = tmp_path / "guest"
+    guest.mkdir()
+    shutil.copy(ROOT / "examples" / "PROFILE-thinker.json", guest / "PROFILE.json")
+    before = (repo / "seats" / "USER.md").read_text()
+    assert cli.main(["compile", "--profile", str(guest / "PROFILE.json"), "--write"]) == 0
+    out = capsys.readouterr().out
+    assert (guest / "USER.md").exists() and (guest / "CAST.json").exists() and (guest / "coordinator" / "SOUL.md").exists()
+    assert (repo / "seats" / "USER.md").read_text() == before
+    assert "cast dir:" in out and str(guest) in out
+    other = tmp_path / "elsewhere"
+    assert cli.main(["compile", "--profile", str(guest / "PROFILE.json"), "--out", str(other), "--write"]) == 0
+    assert (other / "CAST.json").exists()
