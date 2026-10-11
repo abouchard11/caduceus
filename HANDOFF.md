@@ -21,12 +21,22 @@ Done today, in order:
    revealed preference: unprompted continuation or referral, or a named commitment tied to a real
    upcoming task; compliments and a shared PDF do not count. Never serve a stranger's cast before
    the E2 steerability gate. Settle BOTH arms when the probe reports back.
-6. Settled: 20261010-175508-ac78ec (merge gate, FINISHER+FORGE win) and 20260927-035811-afe300
-   (aw-client#116, unexecuted on written evidence). Seven runs remain open; the sheet with disk
-   evidence and a suggested verdict per run is docs/sessions/2026-10-10-settlement-sheet.md.
+6. Settled (Alex delegated the sheet, later the same evening): the merge gate (FINISHER+FORGE
+   win), afe300 (unexecuted), 81f1ba (RECON win: X88 pre-registered as instructed), the Rule Map
+   trio, 1758b8 and 0a05e3 (all unexecuted, zero weight, resettle if the advice later runs),
+   383a56 (RECON mixed: no plugin filed, outbound never ran). Only pair 1's two arms remain open.
+   Found and fixed on the way (PR #22): `cad ledger settle --winner a,b` used to store a seat named
+   "a,b"; settle/resettle/record now split and validate names. One malformed row from 2026-09-29
+   (run 20260929-233211-ea55cf, a --note typed into the seat slot) is still live: resettle it with
+   the real verdict.
+7. Demand probe drafted by ENVOY+SPARRING (run 20261010-215938-f356f5) and staged in
+   hq/outputs/demand-probe-2026-10-10.md and in the Drafts app (tag caduceus/probe). The one
+   message, the yes/maybe replies, the rules, the pass line and a five-row worksheet are there.
+   What 0.4.0 can actually deliver to a stranger is a compiled cast as a document; the probe text
+   promises exactly that. Recipients are Alex's: no record names a peer who holds a PrinciplesYou.
 
 ALEX, still yours:
-- Settle the seven open runs from the sheet; settle BOTH arms of every pair; day 14 report.
+- Send the probe (five peers). Settle BOTH arms of pair 1 when it reports; day 14 report (2026-10-24).
 - Pre-existing, not touched: `cad doctor` FAILs on the guard hook in your root Hermes config.yaml
   (the operator's profile must stay unguarded); `cad followup nudge` fails with Telegram unconfigured.
 - Before a compiled council serves anyone but you: Jev steerability probe E2

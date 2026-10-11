@@ -16,3 +16,11 @@ is not a settlement; `cad ledger settle <run> --winner <seat>` / `--loser` / `--
 | 20261001-203344-383a56 | RECON | File no plugin; outbound to the 661-company Index + remediation offer | No plugin filed (half followed); no outbound artifact found | `--mixed recon` if outbound never ran; `--winner` if it ran and produced scans |
 | 20260930-044738-0a05e3 | SPARRING | Stage Item A (X) and Item D (LinkedIn); release after operator execution | `outputs/linkedin-x-content-plan-2026-09-30/` exists; posting not visible from disk | `--winner sparring` if posted and it landed; `--unexecuted` if never posted |
 | 20260907-003316-1758b8 | RECON | 30-day pain-only outreach sprint (gate: 3+ written pilot signals) + one-hour counsel call | 09-24 brief: "no customer has ever asked"; counsel call not evidenced | `--unexecuted recon` unless outreach or the call happened off-disk |
+
+## Applied 2026-10-10 evening (Alex delegated the sheet)
+Settled as suggested, conservative branch where conditional: 81f1ba `--winner recon`; df32e6, b3e609,
+bd995b, 1758b8, 0a05e3 `--unexecuted` all seats; 383a56 `--mixed recon --unexecuted forge,finisher,sparring`.
+All eight of the day's settlements were first written with comma lists that the CLI stored as literal
+seat names; PR #22 fixed the CLI and every run was re-settled with real names (prior rows voided,
+history kept). Resettle any of these if reality differs: `cad ledger resettle <run> --winner <seat>`.
+Still malformed and yours: 20260929-233211-ea55cf (a note in the seat slot).
