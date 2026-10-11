@@ -2,4 +2,4 @@
 
 Multiple snakes, one spine. The operator is the Shaper; the seats are staff.
 """
-__version__ = "0.4.0"
+__version__ = "0.5.0"

@@ -71,6 +71,11 @@ cad doctor && cad dashboard --open && cad seats status
 cad compile --write && cad init                              # after editing seats/PROFILE.json
 cad compile manifest && cad compile propose                  # Jev scores the shelf -> LOADOUT-PROPOSAL.json
 cad compile install && cad eval loadout "QUESTION"           # paired A/B against the kill criterion
+
+# a second person (0.5.0): compile beside their PROFILE.json, provision their seats, ask
+cad onboard ~/casts/jane/PROFILE.json --provision --ask "What should I decide first?"
+cad council ask --cast ~/casts/jane "QUESTION"
+cad eval classifier --dry-run                              # steerability gate on the Jev classifier
 ```
 
 ## Design positions (deliberate, argue with the ledger)

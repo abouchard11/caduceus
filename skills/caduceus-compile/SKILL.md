@@ -1,7 +1,7 @@
 ---
 name: caduceus-compile
 description: "Compile the operator's gap vector into a seat cast, a generated USER.md, and per-seat skill loadouts, then run paired A/B councils against the loadout kill criterion. Use when seats/PROFILE.json changes, when skills land on this machine, when a real decision comes up while the clock runs, or when asked whether loadouts earn their keep."
-version: 0.1.0
+version: 0.2.0
 author: MidnightDev
 license: Proprietary
 platforms: [macos, linux]
@@ -33,6 +33,14 @@ Done when both run ids are in `cad ledger runs`. Later, settle both arms or neit
 
 **Day 14.** `cad eval loadout report`. PASS keeps the loadouts; PARK means
 `cad compile uninstall`, and the loadouts stay out until the shelf changes.
+
+**A second person.** `cad onboard PATH/PROFILE.json` compiles beside the profile (a cast
+directory) and prints what their profile staffs. `--provision` creates their seats
+(`cad init --cast DIR`; Alex's seats keep his USER.md unless `--take-over`); `--ask "Q"` runs the
+first council on that cast. Done when `cad council ask --cast DIR` returns a memo.
+
+**After changing the classifier or its payloads.** `cad eval classifier`. Done when the sanitized
+arm reads PASS; the raw arm is the control and is expected to fail.
 
 ## Rules
 

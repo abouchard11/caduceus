@@ -1,3 +1,16 @@
+HANDOFF — 0.5.0, the cast flow (2026-10-11; read this block, then the blocks below)
+
+Alex: "wire and unblock all road blocks … first-class and fully functional flow." Five blockers,
+five changes, on main after PR #26: cast directories (a second person never writes into seats/),
+archetype seats provisionable (`cad init --cast DIR`, `--take-over` guards Alex's seats), cast-aware
+councils and `cad onboard`, the Jev classifier steerability gate measured and closed (sanitizer on
+by default; raw Jev flipped 36–62% under a fake system line), doctor accepts the deliberate
+third-party-only root hook (R23), `cad followup nudge` degrades without Telegram.
+Live smoke recorded in docs/sessions/2026-10-11-cast-flow-smoke.md.
+
+Still Alex's: send the demand probe (Gmail draft staged); settle pair 1's two arms and the drafting
+run when it reports; day-14 report 2026-10-24; Telegram if he wants nudges pushed.
+
 HANDOFF — state as of 2026-10-10 evening (read this block first; the compile-branch block and the 2026-09-01 state follow)
 
 0.4.0 is on main (PR #19 merged 12725a6; PR #20 merged 64941fb). The launchd executor keeps calling

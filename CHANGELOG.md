@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.5.0 — 2026-10-11
+The cast flow for a second person (design `docs/compile-design.md` §11, decisions 25–27).
+- A cast is a directory: `cad compile --profile P [--out DIR]` writes CAST.json, USER.md and
+  rendered archetype souls beside the profile, never into Alex's `seats/`. `examples/` is a
+  complete cast directory for the synthetic Thinker.
+- Archetype seats (plant, coordinator, anchor, driver) resolve through `effective_seat`, accept
+  casting overrides, and provision with `cad init --cast DIR`; a guest cast keeps Alex's USER.md
+  in shared seats unless `--take-over` (backed up, reversible with `cad init`).
+- `cad council ask --cast DIR` runs a cast's seats; `cad onboard PROFILE.json [--provision]
+  [--ask Q]` is the one-verb path for a new person.
+- Jev domain classifier: `cad eval classifier` (pre-registered, `docs/classifier-steer-design.md`)
+  measured raw Jev as steerable (fake system line flipped the domain 56–62% of trials); the
+  sanitizer took every hostile class to 0 flips and is now on by default. Context files never
+  reached Jev; this closes the one live-input slot.
+- Doctor: the root `--only third-party` guard hook (R23) is OK, a full root guard still FAILs.
+- `cad followup nudge` prints the agenda and exits 0 when Telegram is unconfigured.
+- Ledger CLI: settle/resettle/record split comma seat lists and validate names (0.4.x fix, PR #22);
+  `cad ledger runs` shows pair/arm/lead; `cad compile` prints the USER.md diff.
+
 ## 0.4.0 — 2026-10-10
 `cad compile`: the complement compiler (design `docs/compile-design.md`, decisions 11–24).
 - `seats/PROFILE.json` is the person as data (PrinciplesYou taxonomy, any instrument maps
