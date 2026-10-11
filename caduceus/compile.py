@@ -206,7 +206,8 @@ def write_outputs(p: Profile, c: Cast, cast_dir, write: bool) -> Dict[str, str]:
         targets[f"{s.seat}/SOUL.md"] = (a.soul_template, lambda old, new: old == new)
     for fname, (text, same) in targets.items():
         path = seats_dir / fname
-        path.parent.mkdir(parents=True, exist_ok=True) if write else None
+        if write:
+            path.parent.mkdir(parents=True, exist_ok=True)
         old = path.read_text() if path.exists() else None
         if old is not None and same(old, text):
             out[fname] = "unchanged"

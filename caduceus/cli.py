@@ -76,7 +76,12 @@ def _cast_council(cast_dir, quick: bool):
     names = seatsetup.cast_seat_names(cast_dir)
     if not names:
         raise SystemExit(f"CAST.json in {cast_dir} names no seats")
-    return [models.effective_seat(n) for n in names[: 2 if quick else 4]]
+    seatsetup.validate_cast_seats(names)
+    take = 2 if quick else 4
+    if len(names) > take:
+        _print(f"[i] cast has {len(names)} seats; running the first {take}: {', '.join(names[:take])} "
+               f"(left out: {', '.join(names[take:])}; name them with --seats to include)")
+    return [models.effective_seat(n) for n in names[:take]]
 
 
 def cmd_council_ask(args):
@@ -785,12 +790,20 @@ def _load_profile(args=None):
 
 
 def _cast_dir(args=None) -> Path:
-    """Where compile writes: --out, else beside --profile, else the repo's seats/."""
+    """Where compile writes: --out, else beside --profile, else the repo's seats/.
+    Decision 25: another person's cast never lands in seats/."""
+    alex = (config.repo_root() / "seats").resolve()
     if getattr(args, "out", None):
-        return Path(args.out)
-    if getattr(args, "profile", None):
-        return compile_mod.cast_dir_for(Path(args.profile))
-    return config.repo_root() / "seats"
+        target = Path(args.out)
+    elif getattr(args, "profile", None):
+        target = compile_mod.cast_dir_for(Path(args.profile))
+    else:
+        return config.repo_root() / "seats"
+    prof = Path(args.profile).resolve() if getattr(args, "profile", None) else None
+    if target.resolve() == alex and prof != alex / "PROFILE.json":
+        raise SystemExit(f"refusing to write a guest cast into {alex} (seats/ is Alex's cast directory); "
+                         "use --out DIR or keep the profile in its own directory")
+    return target
 
 
 def _manifest_or_exit():
@@ -821,8 +834,9 @@ def cmd_compile(args):
         import difflib
         current = cast_dir / "USER.md"
         old_lines = current.read_text().splitlines() if current.exists() else []
+        label = str(cast_dir / "USER.md")
         for line in difflib.unified_diff(old_lines, compile_mod.render_user_md(p, c).splitlines(),
-                                         "seats/USER.md", "seats/USER.md (rendered)", lineterm="", n=1):
+                                         label, label + " (rendered)", lineterm="", n=1):
             _print(line)
     if not args.write and any(v == "would-write" for v in res.values()):
         _print("re-run with --write to apply, then `cad init` to push USER.md into the seats")

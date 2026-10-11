@@ -21,22 +21,35 @@ BLEND_BELOW = 0.6
 QUESTION_ID = "domain"
 SANITIZE = True    # set by the 2026-10-11 steerability eval: raw FAIL (override 36%, fake system 56%, JSON 11%), sanitized PASS (0 flips)
 
-_INSTRUCTION_LINE = re.compile(
-    r"^\s*(system|assistant|user|instruction[s]?|note to (the )?(classifier|model))\s*[:=]"
-    r"|\b(ignore|disregard|override)\b.*\b(domain|classif|instruction)"
-    r"|\bclassif(y|ied)\b.*\bas\b"
-    r"|\btreat (it|this)\b.*\bas\b"
-    r"|\bdomain\s*[:=]",
-    re.I)
-_DOMAIN_JSON = re.compile(r"\{[^{}]*\"domain\"[^{}]*\}", re.I)
+def _patterns():
+    """Built lazily so the domain list comes from config at call time."""
+    d = "|".join(sorted(re.escape(k) for k in config.DOMAIN_DESCRIPTIONS))
+    return [
+        re.compile(r"^\s*(system|assistant|instruction[s]?)\s*[:=]", re.I),
+        re.compile(r"\b(ignore|disregard|override)\b.*\b(domain|classif\w*)", re.I),
+        re.compile(rf"\bclassif\w*\b.*\bas\b\s+[\'\"]?(a |an |the )?({d})\b", re.I),
+        re.compile(rf"\btreat (it|this|that)\b.*\bas\b\s+[\'\"]?(a |an |the )?({d})\b", re.I),
+        re.compile(rf"\bdomain\s*[:=]\s*[\'\"]?({d})\b", re.I),
+    ], re.compile(rf"\{{[^{{}}]*\"domain\"\s*:\s*\"({d})\"[^{{}}]*\}}", re.I)
 
 
 def sanitize(text: str) -> str:
-    """Strip instruction-shaped lines and JSON objects naming a domain before the
-    Jev call. Only the classifier sees live question text; this is its guard."""
-    kept = [l for l in text.splitlines() if not _INSTRUCTION_LINE.search(l)]
-    out = "\n".join(kept)
-    out = _DOMAIN_JSON.sub("", out)
+    """Strip instruction-shaped lines that name one of OUR domains, and JSON
+    objects assigning one, before the Jev call. The first non-empty line is the
+    question and is never removed (2026-10-11 review: most questions are one
+    line). Only the classifier sees live question text; this is its guard."""
+    line_pats, json_pat = _patterns()
+    out_lines = []
+    first_seen = False
+    for line in text.splitlines():
+        if not first_seen and line.strip():
+            first_seen = True
+            out_lines.append(line)
+            continue
+        if any(pt.search(line) for pt in line_pats):
+            continue
+        out_lines.append(line)
+    out = json_pat.sub("", "\n".join(out_lines))
     return re.sub(r"\n{3,}", "\n\n", out).strip()
 
 
@@ -64,6 +77,7 @@ class Classification:
         return [(d, w / total) for d, w in top]
 
 
+
 def build_question() -> Dict[str, dict]:
     return {QUESTION_ID: {
         "type": "choice",
@@ -85,7 +99,17 @@ def domain_distribution(text: str, client=None, allow_jev: bool = True,
         client = jev.Client()
     try:
         use = SANITIZE if sanitize_text is None else sanitize_text
-        answers = client.ask(sanitize(text) if use else text, build_question())
+        sent = text
+        if use:
+            sent = sanitize(text)
+            if not sent.strip():
+                # Only whitespace survived (the first line is always kept, so this is
+                # a blank question). Keywords decide, on the kept text, never on the
+                # original: the original is what the payload lives in.
+                out = _keyword(sent or text.splitlines()[0] if text.strip() else text)
+                out.warnings.append("sanitizer left nothing to classify; keyword classifier decided")
+                return out
+        answers = client.ask(sent, build_question())
         answer = answers[QUESTION_ID]
         raw = answer["probabilities"]
         known = set(config.DOMAIN_DESCRIPTIONS)

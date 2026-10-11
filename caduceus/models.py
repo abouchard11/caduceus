@@ -94,15 +94,15 @@ def effective_seat(name: str) -> Seat:
 
 
 def effective_seats() -> Dict[str, Seat]:
-    return {name: effective_seat(name) for name in SEATS}
+    return {name: effective_seat(name) for name in config.known_seat_names()}
 
 
 def set_seat_model(seat_name: str, model_id: str, provider: str = "openrouter",
                    note: str = "") -> Tuple[Seat, List[str]]:
     """Recast a seat. Updates casting.json AND patches the Hermes profile
     config (which is what `hermes -p <seat>` actually reads)."""
-    if seat_name not in SEATS:
-        raise SystemExit(f"unknown seat '{seat_name}' (have: {', '.join(SEATS)})")
+    if seat_name not in config.known_seat_names():
+        raise SystemExit(f"unknown seat '{seat_name}' (have: {', '.join(config.known_seat_names())})")
     log: List[str] = []
     casting = load_casting()
     prev = effective_seat(seat_name)

@@ -435,7 +435,7 @@ def create_profile(seat: Seat, log: List[str]) -> bool:
         return True
     code, out = run_hermes([
         "profile", "create", seat.name, "--clone", "--description", seat.role,
-    ])
+    ], timeout=240)   # 2026-10-11: three creates timed out at 60s during a hermes self-update
     if code == 0 or profile_exists(seat.name):
         log.append(f"[+] created profile '{seat.name}'")
         return True
@@ -448,6 +448,17 @@ def cast_seat_names(cast_dir) -> List[str]:
     import json as _json
     d = _json.loads((Path(cast_dir) / "CAST.json").read_text())
     return [s["seat"] for s in d.get("seats", [])]
+
+
+def validate_cast_seats(names: List[str]) -> None:
+    """Every seat a cast names must be a known seat: a CAST.json is data from
+    wherever the person's directory came from, checked before any path is
+    formed from it."""
+    known = set(config.known_seat_names())
+    bad = [n for n in names if n not in known]
+    if bad:
+        raise SystemExit(f"CAST.json names unknown seat(s): {', '.join(repr(b) for b in bad)}. "
+                         f"Known: {', '.join(sorted(known))}")
 
 
 def alex_cast_seats() -> List[str]:
@@ -696,9 +707,13 @@ def init(seat_names: Optional[List[str]] = None, force_soul: bool = False,
         log.append(f"[!] FATAL: no CAST.json in {cast_dir} - run `cad compile --profile ... --write` first")
         return log
     names = seat_names or (cast_seat_names(cast_dir) if cast_dir else list(SEATS.keys()))
+    validate_cast_seats(names)
     if guest:
         log.append(f"[i] guest cast {cast_dir}: {', '.join(names)}"
                    + ("" if take_over else "; Alex's own seats keep his USER.md (--take-over to swap)"))
+        if take_over:
+            log.append("[i] take-over: shared seats get this cast's USER.md (previous copies backed up); "
+                       "restore Alex's with: cad init")
     created = []
     from .models import effective_seat  # late import: avoids cycle at load
     for name in names:

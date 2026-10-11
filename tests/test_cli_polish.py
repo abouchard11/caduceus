@@ -46,7 +46,7 @@ def test_compile_prints_user_md_diff_when_stale(repo, capsys):
     cli.main(["compile"])
     out = capsys.readouterr().out
     assert "USER.md: would-write" in out
-    assert "+- Modest 16 — edited for the diff test" in out and "--- seats/USER.md" in out
+    assert "+- Modest 16 — edited for the diff test" in out and f"--- {repo / 'seats' / 'USER.md'}" in out
 
 
 def test_ledger_handles_are_closed(monkeypatch):

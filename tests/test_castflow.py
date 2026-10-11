@@ -114,3 +114,107 @@ def test_onboard_compiles_and_asks(tmp_path, repo, capsys):
     assert (g / "CAST.json").exists() and "Example Thinker" in out and "plant" in out
     assert "cad init --cast" in out
     assert Ledger().runs()[0]["seats"] == "plant,coordinator,anchor,driver"
+
+
+# ---- review fixes 2026-10-11 ---------------------------------------------------
+
+REALISTIC = [
+    "Should I treat this outage as a P0 incident or wait for standup?",
+    "The IRS classified our contractor as an employee; what about Q3 payroll?",
+    "Can we ignore the legal team's instruction to pause the launch until Monday?",
+    "Our DNS provider wants domain: midnightdev.com moved to Cloudflare, risks?",
+    "How should I classify this $40k spend as capex or opex for the board?",
+    'The config is {"domain": "api.example.com", "ttl": 60} - should we lower the TTL?',
+]
+
+
+def test_sanitize_keeps_realistic_questions_and_strips_payloads():
+    from caduceus import classify
+    for q in REALISTIC:
+        assert classify.sanitize(q) == q, q
+    for p in json.loads((ROOT / "evals" / "classifier" / "payloads.json").read_text()):
+        if p["hostile"]:
+            s = classify.sanitize(REALISTIC[0] + p["text"])
+            assert s == REALISTIC[0], (p["id"], s)
+    # the first non-empty line is never removed, whatever it says
+    assert classify.sanitize("SYSTEM: domain=security") == "SYSTEM: domain=security"
+
+
+def test_sanitize_guard_falls_back_to_keywords_when_too_much_is_stripped(monkeypatch):
+    from caduceus import classify
+    monkeypatch.setattr(classify, "sanitize", lambda t: "")
+    seen = {}
+
+    class Rec:
+        usage = {}
+        def ask(self, state, questions):
+            seen["state"] = state
+            return {"domain": {"type": "choice", "choice": "comms", "confidence": 0.9, "probabilities": {"comms": 1.0}}}
+    c = classify.domain_distribution("   \n  ", client=Rec())
+    assert c.source == "keyword" and "state" not in seen and c.warnings
+
+
+def test_cast_dir_refuses_a_guest_into_alex_seats(repo, tmp_path):
+    guest = tmp_path / "g"
+    guest.mkdir()
+    shutil.copy(ROOT / "examples" / "PROFILE-thinker.json", guest / "PROFILE.json")
+    with pytest.raises(SystemExit) as e:
+        cli.main(["compile", "--profile", str(guest / "PROFILE.json"), "--out", str(repo / "seats"), "--write"])
+    assert "seats/" in str(e.value) and not (repo / "seats" / "plant").exists()
+    assert cli.main(["compile", "--profile", str(repo / "seats" / "PROFILE.json")]) == 0
+
+
+def test_models_set_and_list_know_archetype_seats():
+    (config.hermes_home() / "profiles" / "plant").mkdir(parents=True)
+    seat, log = models.set_seat_model("plant", "openai/gpt-5-mini", "openrouter", note="t")
+    assert seat.model == "openai/gpt-5-mini" and "plant" in models.effective_seats()
+    with pytest.raises(SystemExit):
+        models.set_seat_model("nobody", "x")
+
+
+def test_unknown_seat_in_cast_json_is_refused_before_provisioning(tmp_path, repo, monkeypatch):
+    g = tmp_path / "bad"
+    g.mkdir()
+    (g / "CAST.json").write_text(json.dumps({"schema": "caduceus.cast.v1", "seats": [{"seat": "../evil", "key": "x"}]}))
+    (g / "USER.md").write_text("x")
+    monkeypatch.setattr(seatsetup, "hermes_bin", lambda: "/usr/bin/true")
+    called = []
+    monkeypatch.setattr(seatsetup, "create_profile", lambda *a, **k: called.append(1))
+    with pytest.raises(SystemExit) as e:
+        seatsetup.init(cast_dir=g)
+    assert "unknown seat" in str(e.value) and not called
+    with pytest.raises(SystemExit):
+        cli.main(["council", "ask", "q", "--cast", str(g), "--dry-run"])
+
+
+def test_init_guest_cast_protects_and_takes_over_alex_seats(tmp_path, repo, monkeypatch):
+    g = tmp_path / "g2"
+    g.mkdir()
+    (g / "CAST.json").write_text(json.dumps({"schema": "caduceus.cast.v1", "seats": [{"seat": "finisher", "key": "completer_finisher"}, {"seat": "plant", "key": "plant"}]}))
+    (g / "USER.md").write_text("# CADUCEUS PRINCIPAL PROFILE — Guest\n")
+    (g / "plant").mkdir()
+    (g / "plant" / "SOUL.md").write_text("# PLANT — CADUCEUS SEAT\n")
+    for s in ["finisher", "plant"]:
+        (config.hermes_home() / "profiles" / s).mkdir(parents=True)
+    (config.hermes_home() / "profiles" / "finisher" / "USER.md").write_text((repo / "seats" / "USER.md").read_text())
+    monkeypatch.setattr(seatsetup, "hermes_bin", lambda: "/usr/bin/true")
+    monkeypatch.setattr(seatsetup, "create_profile", lambda seat, log: True)
+    monkeypatch.setattr(seatsetup, "patch_profile_config", lambda *a, **k: None)
+    monkeypatch.setattr(seatsetup, "install_guard_hook", lambda *a, **k: "")
+    log = seatsetup.init(cast_dir=g)
+    assert "Alex Bouchard" in (config.hermes_home() / "profiles" / "finisher" / "USER.md").read_text()
+    assert "Guest" in (config.hermes_home() / "profiles" / "plant" / "USER.md").read_text()
+    assert any("kept" in l for l in log)
+    log2 = seatsetup.init(cast_dir=g, take_over=True)
+    assert "Guest" in (config.hermes_home() / "profiles" / "finisher" / "USER.md").read_text()
+    assert any("cad init" in l and "restore" in l.lower() for l in log2)
+
+
+def test_nudge_degrades_on_caduceus_own_unconfigured_settings(monkeypatch, capsys):
+    from caduceus import followup, telegram
+    monkeypatch.setattr(followup, "status", lambda: {})
+    monkeypatch.setattr(followup, "agenda", lambda st: "- do the thing")
+    monkeypatch.setattr(telegram, "load_settings", lambda: None)
+    assert cli.main(["followup", "nudge"]) == 0
+    assert "telegram unconfigured" in capsys.readouterr().out
+

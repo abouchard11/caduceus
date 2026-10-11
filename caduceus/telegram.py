@@ -170,7 +170,7 @@ def post(text: str, seat: Optional[str] = None,
     s = settings or load_settings()
     ok, problems = settings_ready(s)
     if not ok:
-        return False, "; ".join(problems)
+        return False, "telegram not configured: " + "; ".join(problems)
     hermes = shutil.which("hermes")
     if not hermes:
         return False, "hermes not on PATH"
