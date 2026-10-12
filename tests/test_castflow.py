@@ -218,3 +218,20 @@ def test_nudge_degrades_on_caduceus_own_unconfigured_settings(monkeypatch, capsy
     assert cli.main(["followup", "nudge"]) == 0
     assert "telegram unconfigured" in capsys.readouterr().out
 
+
+
+# ---- 2026-10-12: a stopped provisioning never reaches the council --------------
+
+def test_onboard_does_not_ask_when_provisioning_stopped(tmp_path, repo, monkeypatch, capsys):
+    g = tmp_path / "newbie"
+    g.mkdir()
+    shutil.copy(ROOT / "examples" / "PROFILE-thinker.json", g / "PROFILE.json")
+    monkeypatch.setattr(seatsetup, "hermes_bin", lambda: "/usr/bin/true")
+    monkeypatch.setattr(seatsetup, "run_hermes",
+                        lambda args, timeout=60: (seatsetup.TIMEOUT_EXIT, "timeout running hermes"))
+    monkeypatch.setattr(seatsetup, "install_guard_hook", lambda *a, **k: "")
+    with pytest.raises(SystemExit) as stop:
+        cli.main(["onboard", str(g / "PROFILE.json"), "--provision", "--ask", "first move?", "--dry-run"])
+    assert stop.value.code == 1
+    assert seatsetup.STOPPED in capsys.readouterr().out
+    assert Ledger().runs() == []

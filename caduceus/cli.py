@@ -1076,8 +1076,11 @@ def cmd_onboard(args):
     written = [k for k, v in res.items() if v == "written"]
     _print("written: " + (", ".join(written) if written else "nothing new"))
     if args.provision:
-        for line in seatsetup.init(cast_dir=cast_dir, take_over=args.take_over):
+        log = seatsetup.init(cast_dir=cast_dir, take_over=args.take_over)
+        for line in log:
             _print(line)
+        if seatsetup.stopped(log):
+            raise SystemExit(1)   # never ask a council whose seats were not provisioned
     else:
         _print(f"provision: cad init --cast {cast_dir}" + (" --take-over" if args.take_over else ""))
     if args.ask:
