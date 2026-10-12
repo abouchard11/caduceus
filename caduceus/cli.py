@@ -49,6 +49,8 @@ def cmd_init(args):
         take_over=getattr(args, "take_over", False),
     )
     _print("\n".join(log))
+    if seatsetup.stopped(log):
+        raise SystemExit(1)
 
 
 def cmd_doctor(args):

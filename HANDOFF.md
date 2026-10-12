@@ -17,6 +17,12 @@ HANDOFF — state as of 2026-10-10 evening (read this block first; the compile-b
 the editable install on main; `cad exec run` dry ran clean post-merge; 380 tests green on main.
 Ledger backed up before the merge: ~/.caduceus/ledger.db.bak-0.4.0.
 
+2026-10-12, provisioning fix: `hermes profile create` gets 240s (`seatsetup.CREATE_TIMEOUT`). If it
+still leaves no profile, `cad init` stops before the next seat, names the seats not provisioned, and
+exits 1; re-run once `hermes profile list` answers promptly. Cause: on 2026-10-11 hermes rebuilt its
+Python environment at launch (68-85s) and the 60s default killed three creates in a row, each one
+restarting the rebuild. The incident is pinned in tests/test_seatsetup.py.
+
 Done today, in order:
 1. `cad init` pushed the generated seats/USER.md into all five seat profiles (previous copies backed up).
 2. TYPESAFE_API_KEY mirrored from ~/.hermes/.env into ~/.caduceus/env (mode 600). Live domain
