@@ -18,6 +18,21 @@ from . import config
 from .config import SEATS, Seat
 
 
+TIMEOUT_EXIT = 124
+
+# Any hermes launch may first rebuild its Python environment (a changed plugin
+# set, an update), and a create is the launch that changes the plugin set.
+# 2026-10-11: that rebuild ran 68-85s and the 60s default killed it three times.
+CREATE_TIMEOUT = 240
+
+# First words of the log line init() writes when it stops early (see stopped()).
+STOPPED = "[!] STOPPED"
+
+
+class ProvisionTimeout(RuntimeError):
+    """`hermes profile create` ran out of time and left no profile."""
+
+
 def hermes_bin() -> Optional[str]:
     return shutil.which("hermes")
 
@@ -30,7 +45,7 @@ def run_hermes(args: List[str], timeout: int = 60) -> Tuple[int, str]:
         p = subprocess.run([hb] + args, capture_output=True, text=True, timeout=timeout)
         return p.returncode, (p.stdout + "\n" + p.stderr).strip()
     except subprocess.TimeoutExpired:
-        return 124, f"timeout running hermes {' '.join(args[:3])}"
+        return TIMEOUT_EXIT, f"timeout running hermes {' '.join(args[:3])}"
 
 
 def profile_dir(seat_name: str) -> Path:
@@ -435,10 +450,12 @@ def create_profile(seat: Seat, log: List[str]) -> bool:
         return True
     code, out = run_hermes([
         "profile", "create", seat.name, "--clone", "--description", seat.role,
-    ])
+    ], timeout=CREATE_TIMEOUT)
     if code == 0 or profile_exists(seat.name):
         log.append(f"[+] created profile '{seat.name}'")
         return True
+    if code == TIMEOUT_EXIT:
+        raise ProvisionTimeout(seat.name)
     log.append(f"[!] profile create '{seat.name}' failed: {out[:200]}")
     return False
 
@@ -656,6 +673,11 @@ def gateway_commands(seats: List[Seat]) -> List[str]:
     return [f"hermes -p {s.name} gateway install --start-now" for s in seats]
 
 
+def stopped(log: List[str]) -> bool:
+    """True when init() stopped before every seat was provisioned."""
+    return any(line.startswith(STOPPED) for line in log)
+
+
 def init(seat_names: Optional[List[str]] = None, force_soul: bool = False,
          cron: bool = False, guard_write: bool = False,
          enable_api: bool = True) -> List[str]:
@@ -666,14 +688,23 @@ def init(seat_names: Optional[List[str]] = None, force_soul: bool = False,
     api_key = config.ensure_api_key()
     names = seat_names or list(SEATS.keys())
     created = []
+    waiting: List[str] = []
     from .models import effective_seat  # late import: avoids cycle at load
-    for name in names:
+    for i, name in enumerate(names):
         # effective_seat, NOT SEATS[name]: `cad init` must never fight
         # `cad models set`. (2026-08-26: it did - a routine re-run reverted
         # every recast seat in the live profiles, putting forge back on a
         # provider that 401s and re-applying sparring's no-tools lockdown.)
         seat = effective_seat(name)
-        if create_profile(seat, log):
+        try:
+            ready = create_profile(seat, log)
+        except ProvisionTimeout:
+            # Stop, never move on: hermes is busy with work the next create
+            # would only restart from zero (2026-10-11: it did, three times).
+            log.append(f"[!] profile create '{name}' timed out after {CREATE_TIMEOUT}s")
+            waiting = list(names[i:])
+            break
+        if ready:
             install_soul(seat, log, force=force_soul)
             install_user_md(seat, log)
             patch_profile_config(seat, api_key, log, enable_api=enable_api)
@@ -686,6 +717,12 @@ def init(seat_names: Optional[List[str]] = None, force_soul: bool = False,
         log.append("[i] cron jobs skipped (pass --cron to register the morning "
                    "brief + weekly ledger digest)")
     log.append("")
+    if waiting:
+        log.append(f"{STOPPED}: not provisioned: {', '.join(waiting)}. Hermes may be "
+                   "rebuilding its environment.")
+        log.append("Once `hermes profile list` answers promptly, run the same command "
+                   "again; finished seats are left as they are.")
+        return log
     log.append("Seats provisioned. Optional always-on gateways (event-driven, "
                "$0 idle):")
     for cmd in gateway_commands([SEATS[n] for n in created]):

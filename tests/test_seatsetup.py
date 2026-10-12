@@ -609,3 +609,102 @@ def test_install_user_md_overwrites_changed_content(tmp_path, monkeypatch):
     log2 = []
     seatsetup.install_user_md(seat, log2)
     assert any("current" in l for l in log2)
+
+
+# ------------------------------------- provisioning stops on a create timeout
+# 2026-10-11, caused live: a guest cast was provisioned while hermes had to
+# rebuild its Python environment at launch (the first cloned seat changed the
+# plugin set). The rebuild ran 68-85s. `hermes profile create` was killed at
+# the 60s default, init() moved on to the next seat, and each next create
+# started the same rebuild from zero: three timeouts, 29 orphaned hermes
+# environments, no profiles. A create that runs out of time means hermes is
+# busy with something the next create would only restart, so init() stops.
+
+def _fake_hermes(monkeypatch, result):
+    calls = []
+
+    def fake_run(args, timeout=60):
+        calls.append((list(args), timeout))
+        return result(args)
+
+    monkeypatch.setattr(seatsetup, "hermes_bin", lambda: "/usr/bin/true")
+    monkeypatch.setattr(seatsetup, "run_hermes", fake_run)
+    return calls
+
+
+def _creates(calls):
+    return [a[2] for a, _ in calls if a[:2] == ["profile", "create"]]
+
+
+def test_profile_create_gets_the_long_timeout(monkeypatch):
+    calls = _fake_hermes(monkeypatch, lambda args: (0, ""))
+    assert seatsetup.create_profile(SEATS["forge"], [])
+    assert calls[0][1] == seatsetup.CREATE_TIMEOUT
+    assert seatsetup.CREATE_TIMEOUT >= 240
+
+
+def test_run_hermes_reports_a_timeout_as_timeout_exit(monkeypatch):
+    import subprocess
+
+    def expire(cmd, **kw):
+        raise subprocess.TimeoutExpired(cmd, kw["timeout"])
+
+    monkeypatch.setattr(seatsetup, "hermes_bin", lambda: "/usr/bin/true")
+    monkeypatch.setattr(seatsetup.subprocess, "run", expire)
+    code, out = seatsetup.run_hermes(["profile", "list"], timeout=1)
+    assert code == seatsetup.TIMEOUT_EXIT and "timeout" in out
+
+
+def test_init_stops_at_a_create_timeout_instead_of_trying_the_next_seat(monkeypatch):
+    calls = _fake_hermes(monkeypatch, lambda args: (seatsetup.TIMEOUT_EXIT, "timeout running hermes"))
+    log = seatsetup.init(seat_names=["forge", "recon", "envoy"])
+    assert _creates(calls) == ["forge"]
+    assert seatsetup.stopped(log)
+    stop = next(l for l in log if l.startswith(seatsetup.STOPPED))
+    assert "forge" in stop and "recon" in stop and "envoy" in stop
+    assert not any(l.startswith("Seats provisioned") for l in log)
+
+
+def test_init_keeps_the_seats_finished_before_the_timeout(monkeypatch):
+    def result(args):
+        if args[:2] == ["profile", "create"] and args[2] == "forge":
+            seatsetup.profile_dir("forge").mkdir(parents=True, exist_ok=True)
+            return (0, "")
+        return (seatsetup.TIMEOUT_EXIT, "timeout running hermes")
+
+    calls = _fake_hermes(monkeypatch, result)
+    log = seatsetup.init(seat_names=["forge", "recon", "envoy"])
+    assert _creates(calls) == ["forge", "recon"]
+    assert (seatsetup.profile_dir("forge") / "config.yaml").exists()
+    stop = next(l for l in log if l.startswith(seatsetup.STOPPED))
+    assert "recon" in stop and "envoy" in stop and "forge" not in stop
+
+
+def test_a_create_that_times_out_after_making_the_profile_still_counts(monkeypatch):
+    def result(args):
+        if args[:2] == ["profile", "create"]:
+            seatsetup.profile_dir(args[2]).mkdir(parents=True, exist_ok=True)
+        return (seatsetup.TIMEOUT_EXIT, "timeout running hermes")
+
+    calls = _fake_hermes(monkeypatch, result)
+    log = seatsetup.init(seat_names=["forge", "recon"])
+    assert _creates(calls) == ["forge", "recon"]
+    assert not seatsetup.stopped(log)
+
+
+def test_a_plain_create_failure_still_moves_to_the_next_seat(monkeypatch):
+    calls = _fake_hermes(monkeypatch, lambda args: (1, "boom"))
+    log = seatsetup.init(seat_names=["forge", "recon"])
+    assert _creates(calls) == ["forge", "recon"]
+    assert not seatsetup.stopped(log)
+    assert any("profile create 'forge' failed" in l for l in log)
+
+
+def test_cad_init_exits_nonzero_when_provisioning_stopped(monkeypatch, capsys):
+    import pytest
+    from caduceus import cli
+    _fake_hermes(monkeypatch, lambda args: (seatsetup.TIMEOUT_EXIT, "timeout running hermes"))
+    with pytest.raises(SystemExit) as stop:
+        cli.main(["init", "--seats", "forge,recon"])
+    assert stop.value.code == 1
+    assert seatsetup.STOPPED in capsys.readouterr().out

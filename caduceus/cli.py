@@ -46,6 +46,8 @@ def cmd_init(args):
         enable_api=not args.no_api,
     )
     _print("\n".join(log))
+    if seatsetup.stopped(log):
+        raise SystemExit(1)
 
 
 def cmd_doctor(args):
