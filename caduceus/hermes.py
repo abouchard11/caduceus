@@ -35,6 +35,9 @@ class SeatReply:
     transport: str
     error: str = ""
     usage: Dict = field(default_factory=dict)
+    # True when the transport itself could not start (the binary is missing),
+    # as opposed to a call that started and failed.
+    unavailable: bool = False
 
 
 class Transport:
@@ -101,7 +104,8 @@ class OneshotTransport(Transport):
                              error=f"timeout after {ONESHOT_TIMEOUT}s")
         except FileNotFoundError:
             return SeatReply(seat.name, "", False, self.name,
-                             error=f"hermes binary not found ({self.bin})")
+                             error=f"hermes binary not found ({self.bin})",
+                             unavailable=True)
         finally:
             try:
                 os.unlink(usage_file.name)
