@@ -546,3 +546,144 @@ def test_profile_row_warns_when_a_seat_copy_is_stale(tmp_path, monkeypatch):
     (pd / "USER.md").write_text("# CADUCEUS PRINCIPAL PROFILE — stale copy\n")
     status, detail = _row(doctor.checks(), "profile")
     assert status == doctor.WARN and "cad init" in detail and "finisher" in detail
+
+
+# ------------------------------------------------- scheduler PATH (would a job find hermes?)
+# A job started by the system scheduler does not get the PATH the operator's
+# interactive shell has, so a `hermes` that resolves fine at the prompt can be
+# invisible to a scheduled `cad` command. The row compares where hermes
+# resolves here with where a scheduler-started job would look. Read-only.
+#
+# The binary lookup is mocked: nothing here depends on, or touches, the real
+# environment, and the launchd directory is always an isolated tmp dir.
+
+import os
+import shutil
+
+import pytest
+
+HOME_BIN = "/home/someone/.local/bin"
+HOME_HERMES = HOME_BIN + "/hermes"
+
+
+def _hermes_at(monkeypatch, where):
+    """hermes lives at `where` (or nowhere). A bare lookup is this environment;
+    a lookup with path= finds it only if that PATH lists its directory."""
+    real = shutil.which
+
+    def which(cmd, mode=os.F_OK | os.X_OK, path=None):
+        if cmd != "hermes":
+            return real(cmd, mode=mode, path=path)
+        if where is None:
+            return None
+        if path is None:
+            return where
+        return where if os.path.dirname(where) in path.split(os.pathsep) else None
+
+    monkeypatch.setattr(shutil, "which", which)
+    monkeypatch.setattr(doctor, "run_hermes", lambda *a, **k: (0, "hermes test-double"))
+
+
+def _job(d, label, path=None):
+    """An installed caduceus job; `path` is its EnvironmentVariables PATH, if any."""
+    data = {"Label": label,
+            "ProgramArguments": ["/bin/zsh", "-lc", "cad exec run --live"]}
+    if path is not None:
+        data["EnvironmentVariables"] = {"PATH": path}
+    with open(d / f"{label}.plist", "wb") as f:
+        plistlib.dump(data, f)
+
+
+def _sched(rows):
+    row = _row(rows, "scheduler path")
+    assert row is not None, "no `scheduler path` row"
+    return row
+
+
+def test_scheduler_path_warns_when_hermes_is_only_on_the_shell_path(monkeypatch, tmp_path):
+    _make_all_seat_profiles()
+    _launchd_dir(monkeypatch, tmp_path)
+    _hermes_at(monkeypatch, HOME_HERMES)
+
+    status, detail = _sched(doctor.checks())
+
+    assert status == doctor.WARN
+    assert HOME_BIN in detail                      # the directory that would need adding
+    assert "/usr/bin" in detail                    # and what the scheduler-like PATH was
+
+
+@pytest.mark.parametrize("where", ["/opt/homebrew/bin/hermes", "/usr/local/bin/hermes",
+                                   "/usr/bin/hermes"])
+def test_scheduler_path_ok_when_hermes_is_in_a_standard_directory(monkeypatch, tmp_path, where):
+    _make_all_seat_profiles()
+    _launchd_dir(monkeypatch, tmp_path)
+    _hermes_at(monkeypatch, where)
+
+    status, detail = _sched(doctor.checks())
+
+    assert status == doctor.OK
+    assert where in detail
+
+
+def test_scheduler_path_row_absent_when_hermes_is_not_installed(monkeypatch, tmp_path):
+    """The `hermes binary` row already FAILs for this; no second complaint."""
+    _make_all_seat_profiles()
+    _launchd_dir(monkeypatch, tmp_path)
+    _hermes_at(monkeypatch, None)
+
+    rows = doctor.checks()
+
+    assert _row(rows, "scheduler path") is None
+    assert _row(rows, "hermes binary")[0] == doctor.FAIL
+
+
+def test_scheduler_path_names_the_installed_jobs_that_cannot_find_hermes(monkeypatch, tmp_path):
+    _make_all_seat_profiles()
+    d = _launchd_dir(monkeypatch, tmp_path)
+    _job(d, "example.caduceus.exec")
+    _job(d, "example.caduceus.nudge")
+    _hermes_at(monkeypatch, HOME_HERMES)
+
+    status, detail = _sched(doctor.checks())
+
+    assert status == doctor.WARN
+    assert "example.caduceus.exec" in detail and "example.caduceus.nudge" in detail
+    assert HOME_BIN in detail
+
+
+def test_scheduler_path_ok_when_the_job_declares_the_directory(monkeypatch, tmp_path):
+    """The natural fix must turn the row green: a job's own PATH counts."""
+    _make_all_seat_profiles()
+    d = _launchd_dir(monkeypatch, tmp_path)
+    _job(d, "example.caduceus.exec", path=HOME_BIN + ":/usr/bin")
+    _hermes_at(monkeypatch, HOME_HERMES)
+
+    status, detail = _sched(doctor.checks())
+
+    assert status == doctor.OK, detail
+
+
+def test_scheduler_path_blames_only_the_job_that_lacks_the_directory(monkeypatch, tmp_path):
+    _make_all_seat_profiles()
+    d = _launchd_dir(monkeypatch, tmp_path)
+    _job(d, "example.caduceus.exec", path=HOME_BIN)
+    _job(d, "example.caduceus.nudge")
+    _hermes_at(monkeypatch, HOME_HERMES)
+
+    status, detail = _sched(doctor.checks())
+
+    assert status == doctor.WARN
+    assert "example.caduceus.nudge" in detail
+    assert "example.caduceus.exec" not in detail
+
+
+def test_scheduler_path_check_changes_nothing(monkeypatch, tmp_path):
+    _make_all_seat_profiles()
+    d = _launchd_dir(monkeypatch, tmp_path)
+    _job(d, "example.caduceus.exec")
+    _hermes_at(monkeypatch, HOME_HERMES)
+    before = {p.name: p.read_bytes() for p in d.iterdir()}
+
+    doctor.checks()
+
+    assert {p.name: p.read_bytes() for p in d.iterdir()} == before
