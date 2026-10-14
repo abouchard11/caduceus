@@ -36,6 +36,17 @@ SCHEDULER_PATH = ("/usr/bin", "/bin", "/usr/sbin", "/sbin",
                   "/opt/homebrew/bin", "/usr/local/bin")
 
 
+def _last_log_line(path) -> str:
+    """Last non-blank line of a job log, or "" when there is none."""
+    if not path or not Path(str(path)).exists():
+        return ""
+    try:
+        lines = [l for l in Path(str(path)).read_text().splitlines() if l.strip()]
+    except Exception:
+        return ""
+    return lines[-1] if lines else ""
+
+
 def _launchd_plists() -> List[Path]:
     """Installed caduceus launchd job definitions (CADUCEUS_LAUNCHD_DIR, else
     ~/Library/LaunchAgents)."""
@@ -275,13 +286,22 @@ def checks() -> List[Tuple[str, str, str]]:
             except Exception:
                 continue
             label = str(data.get("Label", pl.stem))
-            errp = data.get("StandardErrorPath")
-            if errp and Path(str(errp)).exists():
-                lines = [l for l in Path(str(errp)).read_text().splitlines() if l.strip()]
-                last = lines[-1] if lines else ""
-                if re.search(r"error|traceback|exception", last, re.I):
-                    sick.append(f"{label}: {last[:90]}")
-        if sick:
+            # stderr: any error shape. stdout: only the one-line FAILED summary
+            # the CLI prints when a command could not do its work (a stdout
+            # item detail can legitimately contain the word "error").
+            last_err = _last_log_line(data.get("StandardErrorPath"))
+            last_out = _last_log_line(data.get("StandardOutPath"))
+            if re.search(r"error|traceback|exception|^failed:", last_err, re.I):
+                sick.append(f"{label}: {last_err[:90]}")
+            elif last_out.startswith("FAILED:"):
+                sick.append(f"{label}: {last_out[:90]}")
+        if sick and any(re.search(r"hermes|not on PATH|binary not found|transport unavailable", s, re.I)
+                        for s in sick):
+            out.append((WARN, "launchd",
+                        "; ".join(sick) + " - last unattended run could not find "
+                        "hermes. The scheduler's PATH lacks it: see the "
+                        "scheduler path row"))
+        elif sick:
             out.append((WARN, "launchd",
                         "; ".join(sick) + " - last unattended run died. The "
                         "jobs call the editable install: check `git -C "
