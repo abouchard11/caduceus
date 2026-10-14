@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+- `cad exec run --live` exits 1 when the transport cannot run (the hermes binary is not
+  found, or every selected item fails at the transport): item lines still print, then one
+  `FAILED:` line on stderr names the cause. Empty queue, dry run and mixed outcomes exit 0.
+- New doctor row `scheduler path`: WARN, naming the directory, when hermes resolves in
+  this shell but not on a scheduler-like PATH (an installed job's own PATH counts). Read-only.
+
 ## 0.4.0 — 2026-10-10
 `cad compile`: the complement compiler (design `docs/compile-design.md`, decisions 11–24).
 - `seats/PROFILE.json` is the person as data (PrinciplesYou taxonomy, any instrument maps

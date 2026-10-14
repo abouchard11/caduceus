@@ -358,6 +358,10 @@ def cmd_exec_queue(args):
 
 
 def cmd_exec_run(args):
+    """Exit 0 for an empty queue, a dry run, or any live run where an item was
+    handled, ran, or failed for its own reasons. Exit 1 when the transport could
+    not run (executor.transport_failure): per-item lines still print, then one
+    FAILED line on stderr names the cause."""
     from . import executor
     results = executor.run_queue(live=args.live, max_actions=args.max)
     if not results:
@@ -367,6 +371,11 @@ def cmd_exec_run(args):
         _print(f"  [{r.cid}] {r.status}: {r.detail[:120]}")
     if not args.live:
         _print("dry-run - pass --live to execute")
+    failure = executor.transport_failure(results)
+    if failure:
+        sys.stdout.flush()  # keep the item lines ahead of the summary in a shared log
+        sys.stderr.write(f"FAILED: {failure}\n")
+        raise SystemExit(1)
 
 
 def cmd_followup_agenda(args):

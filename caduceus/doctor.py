@@ -8,7 +8,7 @@ import re
 import shutil
 import sqlite3
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from . import brief, config
 from .config import SEATS
@@ -26,6 +26,22 @@ OK, WARN, FAIL = "OK ", "WARN", "FAIL"
 # exactly how the silent failure it exists to catch gets through. 36h clears
 # the healthy window and still catches one missed run (>=55h).
 STALE_BRIEF_HOURS = 36
+
+# Where a job started by the system scheduler can look for a binary. launchd
+# hands user agents /usr/bin:/bin:/usr/sbin:/sbin; a non-interactive login
+# shell adds the system paths and what the profile files export, but never the
+# interactive rc file where most people extend PATH. Homebrew's bin (either
+# prefix) is the one extra directory commonly present.
+SCHEDULER_PATH = ("/usr/bin", "/bin", "/usr/sbin", "/sbin",
+                  "/opt/homebrew/bin", "/usr/local/bin")
+
+
+def _launchd_plists() -> List[Path]:
+    """Installed caduceus launchd job definitions (CADUCEUS_LAUNCHD_DIR, else
+    ~/Library/LaunchAgents)."""
+    ldir = Path(os.environ.get("CADUCEUS_LAUNCHD_DIR",
+                               str(Path.home() / "Library" / "LaunchAgents")))
+    return sorted(ldir.glob("*caduceus*.plist")) if ldir.exists() else []
 
 
 def checks() -> List[Tuple[str, str, str]]:
@@ -249,9 +265,7 @@ def checks() -> List[Tuple[str, str, str]]:
     # install was on a checkout that predated the subcommand - and the failure
     # sat in /tmp/caduceus-*.err where nobody looked. Same silent class as the
     # cron row above; watch the artifact (the err log), not the schedule.
-    ldir = Path(os.environ.get("CADUCEUS_LAUNCHD_DIR",
-                               str(Path.home() / "Library" / "LaunchAgents")))
-    plists = sorted(ldir.glob("*caduceus*.plist")) if ldir.exists() else []
+    plists = _launchd_plists()
     if plists:
         sick = []
         for pl in plists:
@@ -277,6 +291,10 @@ def checks() -> List[Tuple[str, str, str]]:
             out.append((OK, "launchd",
                         f"{len(plists)} caduceus job(s) installed, err logs clean"))
 
+    sched = _scheduler_path_row()
+    if sched:
+        out.append(sched)
+
     # env
     env = config.load_env()
     out.append((OK if len(env.get("CADUCEUS_API_KEY", "")) >= 16 else WARN,
@@ -288,6 +306,45 @@ def checks() -> List[Tuple[str, str, str]]:
     out.append(_profile_row())
     out.append(_loadout_row())
     return out
+
+
+def _scheduler_path_row() -> Optional[Tuple[str, str, str]]:
+    """Would a scheduler find hermes? Read-only: compares where hermes resolves
+    here with where a scheduler-started job looks.
+
+    Each installed job is searched with its own EnvironmentVariables PATH plus
+    SCHEDULER_PATH, so declaring the directory in the job turns this green;
+    with no installed jobs the question is asked of SCHEDULER_PATH alone. A job
+    that extends PATH inside its own shell command line is not modelled."""
+    here = hermes_bin()
+    if not here:
+        return None  # the "hermes binary" row already FAILs; nothing to compare
+    jobs: List[Tuple[str, str]] = []
+    for pl in _launchd_plists():
+        try:
+            with open(pl, "rb") as f:
+                data = plistlib.load(f)
+            env = data.get("EnvironmentVariables")
+            declared = str(env.get("PATH", "")) if isinstance(env, dict) else ""
+            label = str(data.get("Label", pl.stem))
+        except Exception:
+            continue
+        search = [p for p in declared.split(os.pathsep) if p] + list(SCHEDULER_PATH)
+        jobs.append((label, os.pathsep.join(search)))
+    installed = bool(jobs)
+    if not installed:
+        jobs = [("", os.pathsep.join(SCHEDULER_PATH))]
+    found = [(label, shutil.which("hermes", path=search)) for label, search in jobs]
+    blind = [label for label, hit in found if not hit]
+    if not blind:
+        who = f"{len(jobs)} caduceus job(s)" if installed else "a scheduler-like PATH"
+        return (OK, "scheduler path", f"hermes resolves for {who} ({found[0][1]})")
+    want = str(Path(here).parent)
+    who = ", ".join(blind) if installed else "a scheduler-started job"
+    return (WARN, "scheduler path",
+            f"{who} would not find hermes: it is at {here}, and {want} is not on "
+            f"the PATH a scheduler provides ({os.pathsep.join(SCHEDULER_PATH)}); "
+            f"{want} would need to be on the job's PATH")
 
 
 def _profile_row() -> Tuple[str, str, str]:

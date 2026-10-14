@@ -85,11 +85,18 @@ Rules:
 - Write the complete artifact. It ships as-is."""
 
 
+# Prefix on the detail of a result whose transport call failed (status "error").
+TRANSPORT_PREFIX = "transport: "
+
+
 class ExecResult:
     def __init__(self, cid: str, status: str, detail: str,
-                 files: Optional[List[Path]] = None, cost: float = 0.0):
+                 files: Optional[List[Path]] = None, cost: float = 0.0,
+                 unavailable: bool = False):
         self.cid, self.status, self.detail = cid, status, detail
         self.files, self.cost = files or [], cost
+        # the transport could not start at all (see SeatReply.unavailable)
+        self.unavailable = unavailable
 
 
 def _root_for(action: str) -> Path:
@@ -170,7 +177,8 @@ def execute_one(c, transport=None, live: bool = False) -> ExecResult:
     reply: SeatReply = transport.ask(
         seat, PROMPT.format(action=c.action, run_id=c.run_id, root=root))
     if not reply.ok:
-        return ExecResult(c.id, "error", f"transport: {reply.error[:200]}")
+        return ExecResult(c.id, "error", f"{TRANSPORT_PREFIX}{reply.error[:200]}",
+                          unavailable=reply.unavailable)
 
     cost = float(reply.usage.get("estimated_cost_usd", 0)
                  or reply.usage.get("cost_usd", 0) or 0) or EST_ACTION_COST
@@ -260,6 +268,32 @@ def _run_queue_locked(live: bool, max_actions: int, transport) -> List[ExecResul
     if live and results:
         _notify(results)
     return results
+
+
+def transport_failure(results: List[ExecResult]) -> str:
+    """Summary of a live run that did no work because the transport could not
+    run, or "" for every other outcome.
+
+    Two shapes count: the transport could not start at all (the binary is
+    missing, whatever else was selected), or every selected item failed at the
+    transport before any work began. Anything else keeps the exit-0 contract:
+    an empty queue, a dry run, items escalated or blocked before the transport
+    was used, or a run where some items finished while another failed for its
+    own reasons.
+    """
+    errors = [r for r in results if r.status == "error"]
+    unavailable = any(r.unavailable for r in errors)
+    if not errors or not (unavailable or len(errors) == len(results)):
+        return ""
+    causes: List[str] = []
+    for r in errors:
+        cause = (r.detail[len(TRANSPORT_PREFIX):]
+                 if r.detail.startswith(TRANSPORT_PREFIX) else r.detail)
+        if cause not in causes:
+            causes.append(cause)
+    what = "unavailable" if unavailable else "failed"
+    return (f"executor transport {what} - {' | '.join(causes)}; "
+            f"{len(errors)} of {len(results)} selected item(s) failed at the transport")
 
 
 def _notify(results: List[ExecResult]) -> None:
