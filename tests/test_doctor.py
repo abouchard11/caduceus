@@ -416,13 +416,16 @@ def _launchd_dir(monkeypatch, tmp_path):
     return d
 
 
-def _plist(d, label, err_path):
+def _plist(d, label, err_path, out_path=None):
     p = d / f"{label}.plist"
+    job = {"Label": label,
+           "ProgramArguments": ["/bin/zsh", "-lc", "cad exec run --live"],
+           "StandardErrorPath": str(err_path),
+           "StartCalendarInterval": [{"Hour": 8, "Minute": 45, "Weekday": 1}]}
+    if out_path is not None:
+        job["StandardOutPath"] = str(out_path)
     with open(p, "wb") as f:
-        plistlib.dump({"Label": label,
-                       "ProgramArguments": ["/bin/zsh", "-lc", "cad exec run --live"],
-                       "StandardErrorPath": str(err_path),
-                       "StartCalendarInterval": [{"Hour": 8, "Minute": 45, "Weekday": 1}]}, f)
+        plistlib.dump(job, f)
     return p
 
 
@@ -452,6 +455,51 @@ def test_launchd_ok_when_err_logs_are_clean(monkeypatch, tmp_path):
 
     assert status == doctor.OK
     assert "1 caduceus job" in detail
+
+
+def test_launchd_warns_on_the_exec_failed_summary_in_stderr(monkeypatch, tmp_path):
+    _make_all_seat_profiles()
+    d = _launchd_dir(monkeypatch, tmp_path)
+    err = tmp_path / "caduceus-exec.err"
+    err.write_text("FAILED: executor transport unavailable - hermes binary not found (hermes); "
+                   "2 of 2 selected item(s) failed at the transport\n")
+    _plist(d, "dev.midnightdev.caduceus.exec", err)
+
+    status, detail = _row(doctor.checks(), "launchd")
+
+    assert status == doctor.WARN
+    assert "transport unavailable" in detail
+    assert "scheduler path" in detail   # the PATH hint, not the editable-install hint
+
+
+def test_launchd_warns_on_a_failed_summary_in_stdout(monkeypatch, tmp_path):
+    _make_all_seat_profiles()
+    d = _launchd_dir(monkeypatch, tmp_path)
+    err = tmp_path / "caduceus-nudge.err"
+    err.write_text("")
+    out = tmp_path / "caduceus-nudge.log"
+    out.write_text("FAILED: hermes not on PATH\n")
+    _plist(d, "dev.midnightdev.caduceus.nudge", err, out)
+
+    status, detail = _row(doctor.checks(), "launchd")
+
+    assert status == doctor.WARN
+    assert "hermes not on PATH" in detail
+    assert "scheduler path" in detail
+
+
+def test_launchd_ignores_the_word_error_inside_a_stdout_item_line(monkeypatch, tmp_path):
+    _make_all_seat_profiles()
+    d = _launchd_dir(monkeypatch, tmp_path)
+    err = tmp_path / "caduceus-exec.err"
+    err.write_text("")
+    out = tmp_path / "caduceus-exec.log"
+    out.write_text("  [abc123] done: wrote notes on the error budget\n")
+    _plist(d, "dev.midnightdev.caduceus.exec", err, out)
+
+    status, _ = _row(doctor.checks(), "launchd")
+
+    assert status == doctor.OK
 
 
 def test_launchd_row_absent_when_no_jobs_installed(monkeypatch, tmp_path):
