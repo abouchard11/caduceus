@@ -3,7 +3,7 @@ name: caduceus-council
 description: "Run multi-seat council deliberations, the believability ledger, the two-person command rule, and the Caduceus dashboard via the `cad` CLI. Use for big decisions, plan competitions, risky-command approvals, and morning briefs."
 version: 1.0.0
 author: MidnightDev
-license: MIT
+license: Apache-2.0
 platforms: [macos, linux]
 metadata:
   hermes:

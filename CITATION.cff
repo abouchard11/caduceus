@@ -18,7 +18,7 @@ type: software
 repository-code: "https://github.com/abouchard11/caduceus"
 url: "https://github.com/abouchard11/caduceus"
 license: Apache-2.0
-version: "0.3.0"
+version: "0.4.0"
 date-released: 2026-08-19
 keywords:
   - "ai-agents"
