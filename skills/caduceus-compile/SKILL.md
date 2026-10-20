@@ -3,7 +3,7 @@ name: caduceus-compile
 description: "Compile the operator's gap vector into a seat cast, a generated USER.md, and per-seat skill loadouts, then run paired A/B councils against the loadout kill criterion. Use when seats/PROFILE.json changes, when skills land on this machine, when a real decision comes up while the clock runs, or when asked whether loadouts earn their keep."
 version: 0.1.0
 author: MidnightDev
-license: Proprietary
+license: Apache-2.0
 platforms: [macos, linux]
 metadata:
   hermes:
