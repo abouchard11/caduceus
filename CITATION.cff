@@ -19,6 +19,11 @@ repository-code: "https://github.com/abouchard11/caduceus"
 url: "https://github.com/abouchard11/caduceus"
 license: Apache-2.0
 version: "0.4.0"
+doi: "10.5281/zenodo.23503124"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.23503124"
+    description: "Concept DOI: resolves to the latest archived release on Zenodo"
 date-released: 2026-08-19
 keywords:
   - "ai-agents"

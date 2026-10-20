@@ -1,5 +1,7 @@
 # ⚕ Caduceus
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23503124.svg)](https://doi.org/10.5281/zenodo.23503124)
+
 **A multi-seat decision engine on Hermes Agent. Multiple snakes, one spine.**
 
 The operator is the Shaper — vision, goals, final calls. The seats are staff,
