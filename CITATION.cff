@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "caduceus"
+abstract: >-
+  A multi-seat decision engine on Hermes Agent. The operator sets vision, goals and
+  final calls; the seats are staff, cast to compensate the operator's measured gaps and
+  spread across four model families on purpose, because same-family agents agree too
+  easily. It configures Hermes' existing profiles, dispatcher, cron, gateways and hooks
+  rather than reinventing them.
+authors:
+  - family-names: "Bouchard"
+    given-names: "Alex"
+    email: "alex@midnightdev.dev"
+    affiliation: "MidnightDev"
+    website: "https://midnightdev.dev"
+    orcid: "https://orcid.org/0009-0003-0911-9681"
+type: software
+repository-code: "https://github.com/abouchard11/caduceus"
+url: "https://github.com/abouchard11/caduceus"
+license: Apache-2.0
+version: "0.3.0"
+date-released: 2026-08-19
+keywords:
+  - "ai-agents"
+  - "decision-making"
+  - "llm-council"
+  - "multi-agent"
+  - "hermes-agent"
